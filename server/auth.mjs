@@ -53,7 +53,7 @@ export async function handleAuth(request, DB, address = 'local') {
     try { data = JSON.parse(raw); } catch { return authJson({ error: '입력 내용을 확인해 주세요.' }, 400); }
     if (!data || typeof data !== 'object' || Array.isArray(data)) return authJson({ error: '입력 내용을 확인해 주세요.' }, 400);
     const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : '';
-    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof data.password !== 'string' || data.password.length < 12 || data.password.length > 128) return authJson({ error: '이메일 형식과 비밀번호를 확인해 주세요. 비밀번호는 12~128자여야 합니다.' }, 400);
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof data.password !== 'string' || data.password.length < 8 || data.password.length > 128) return authJson({ error: '이메일 형식과 비밀번호를 확인해 주세요. 비밀번호는 8~128자여야 합니다.' }, 400);
     attempt(DB, 'account:' + email, 20);
     let userId;
     if (path === '/api/auth/register') {

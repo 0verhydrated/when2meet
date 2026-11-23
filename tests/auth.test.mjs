@@ -5,7 +5,7 @@ import { openDatabase } from '../scripts/database.mjs';
 
 test('standalone registration without email verification, sessions and protected data', async () => {
   const DB = openDatabase();
-  const password = 'test-only-password-2026';
+  const password = '12345678';
   const request = async (path, { method = 'GET', data, cookie, origin = 'https://when2meet.example', headers: extra = {} } = {}) => {
     const response = await handleNative(new Request('https://when2meet.example/api' + path, { method, headers: { 'Content-Type': 'application/json', Origin: origin, ...(cookie ? { Cookie: cookie } : {}), ...extra }, ...(data ? { body: JSON.stringify(data) } : {}) }), DB, 'test');
     return { status: response.status, body: await response.json(), cookie: response.headers.get('set-cookie')?.split(';')[0], headers: response.headers };
@@ -26,7 +26,7 @@ test('standalone registration without email verification, sessions and protected
   assert.equal((await request('/auth/register', { method: 'POST', data: { name: '나', email: 'alice@example.com', password } })).status, 409);
   assert.equal(DB.sqlite.prepare('SELECT COUNT(*) AS count FROM users').get().count, 1);
   assert.equal((await request('/auth/login', { method: 'POST', data: { email: 'alice@example.com', password: 'wrong-password-long' } })).status, 401);
-  assert.equal((await request('/auth/register', { method: 'POST', data: { name: '짧음', email: 'short@example.com', password: 'short' } })).status, 400);
+  assert.equal((await request('/auth/register', { method: 'POST', data: { name: '짧음', email: 'short@example.com', password: '1234567' } })).status, 400);
   assert.equal((await request('/auth/register', { method: 'POST', data: { name: '나', email: 'bob@example.com', password }, origin: 'https://evil.example' })).status, 403);
   assert.equal((await request('/me', { headers: { 'oai-authenticated-user-id': own.body.user.id, 'oai-authenticated-user-email': 'alice@example.com' } })).body.authenticated, false);
   assert.equal((await request('/fixed', { method: 'PUT', data: { items: [], version: 0 } })).status, 401);
