@@ -13,16 +13,15 @@ test('Overview counts and detail names agree, including duplicate names and empt
   assert.equal(overviewSlotDetails(model, '1999-01-01|540'), null);
   assert.deepEqual(people[2].slots, []);
 });
-test('All and best filters operate across the whole meeting and never treat zero responses as unanimous', () => {
+test('All and best filters operate across the whole meeting and include unanimous times and exclude empty responses', () => {
   const model = buildOverviewModel(meeting, people);
   assert.deepEqual(model.slots.filter(slot => matchesOverviewFilter(model.counts[slot], model, 'best')), ['2026-11-24|540']);
-  assert.equal(model.slots.filter(slot => matchesOverviewFilter(model.counts[slot], model, 'unanimous')).length, 0);
+  assert.equal(model.slots.filter(slot => matchesOverviewFilter(model.counts[slot], model, 'all')).length, 4);
   const two = buildOverviewModel(meeting, people.slice(0, 2));
-  assert.equal(matchesOverviewFilter(2, two, 'unanimous'), true);
+  assert.equal(matchesOverviewFilter(2, two, 'best'), true);
   for (const empty of [[], [{ name: '불참', slots: [] }]]) {
     const noTimes = buildOverviewModel(meeting, empty);
     assert.equal(matchesOverviewFilter(0, noTimes, 'best'), false);
-    assert.equal(matchesOverviewFilter(0, noTimes, 'unanimous'), false);
   }
 });
 test('Date selection fills a partial day, skips fixed commitments and preserves other dates', () => {

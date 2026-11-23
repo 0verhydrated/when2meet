@@ -82,7 +82,7 @@ try {
   assert.equal(await bob.$$eval('#schedule-grid .slot[aria-disabled="true"]', elements => elements.length), 0);
   assert.equal((await bob.content()).includes('비공개 고정 수업'), false);
   await bob.click('#select-all'); await saved(bob);
-  await bob.waitForFunction(() => document.querySelector('#results').textContent.includes('2명이 응답했어요'));
+  await bob.waitForFunction(() => document.querySelector('#overview-summary').textContent.includes('2명의 저장된 응답'));
   assert.match(await bob.$eval('#results', element => element.textContent), /모두 가능해요 \(2\/2명\)/);
   assert.equal(await bob.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await bob.screenshot({ path: fileURLToPath(new URL('meeting-mobile.png', output)), fullPage: true });
@@ -91,7 +91,7 @@ try {
   await navigate(bob, link); await loaded(bob, '#undo-response');
   assert.equal(await bob.$$eval('#schedule-grid .slot[aria-disabled="true"]', elements => elements.length), 2);
   assert.equal(await bob.$$eval('#schedule-grid .slot[aria-pressed="true"]', elements => elements.length), 4);
-  await alice.click('#refresh-results'); await alice.waitForFunction(() => document.querySelector('#results').textContent.includes('2명이 응답했어요'));
+  await alice.click('#refresh-results'); await alice.waitForFunction(() => document.querySelector('#overview-summary').textContent.includes('2명의 저장된 응답'));
   assert.match(await alice.$eval('.candidate-list li', element => element.textContent), /11:00 ~ 12:00/);
   assert.equal(await alice.evaluate(() => document.activeElement.id), 'refresh-results');
   await navigate(bob, origin + '/app?new=1'); await loaded(bob, '#create-form'); assert.equal(await bob.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

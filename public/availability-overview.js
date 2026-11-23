@@ -4,7 +4,7 @@ import { timeAxisMarkup, bindGridKeyboard } from './schedule-grid.js';
 const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 const timeLabel = minute => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 const dateLabel = date => new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' }).format(new Date(date + 'T00:00:00+09:00'));
-const filterLabels = { all: '전체 현황', unanimous: '모두 가능', best: '가장 많이 가능' };
+const filterLabels = { all: '전체 현황', best: '가장 많이 가능' };
 
 export function buildOverviewModel(meeting, participants) {
   const dates = Array.from({ length: (Date.parse(meeting.end_date) - Date.parse(meeting.start_date)) / 86400000 + 1 }, (_, i) => new Date(Date.parse(meeting.start_date + 'T00:00:00Z') + i * 86400000).toISOString().slice(0, 10));
@@ -15,7 +15,6 @@ export function buildOverviewModel(meeting, participants) {
   return { dates, minutes, people, slots, counts, total: people.length, maximum: Math.max(0, ...Object.values(counts)) };
 }
 export function matchesOverviewFilter(count, model, filter) {
-  if (filter === 'unanimous') return model.total > 0 && count === model.total;
   if (filter === 'best') return model.maximum > 0 && count === model.maximum;
   return true;
 }
@@ -29,12 +28,12 @@ export function overviewSlotDetails(model, slot) {
 
 export function mountAvailabilityOverview(container, data, state) {
   if (data.participants.some(person => !Array.isArray(person.slots))) {
-    container.innerHTML = '<p class="helper">전체 현황을 불러오려면 결과를 새로고침해 주세요.</p>'; return;
+    container.innerHTML = '<h2 id="overview-heading">전체 참여 현황</h2><p class="helper">전체 현황을 불러오려면 결과를 새로고침해 주세요.</p>'; return;
   }
   const model = buildOverviewModel(data.meeting, data.participants);
   if (!Object.hasOwn(filterLabels, state.filter)) state.filter = 'all';
   if (!model.slots.includes(state.slot)) state.slot = null;
-  container.innerHTML = `<h3 id="overview-heading">전체 참여 현황을 비교해 보세요</h3><p class="helper">색이 진할수록 가능한 사람이 많아요. 숫자는 가능 인원 / 응답 인원이에요. 시간칸을 누르면 참여자별 상태를 확인할 수 있어요.</p><div class="overview-filters" role="group" aria-label="결과 필터">${Object.entries(filterLabels).map(([key, label]) => `<button class="quiet-button" type="button" data-filter="${key}" aria-pressed="${state.filter === key}" aria-controls="overview-grid">${label}</button>`).join('')}</div><p class="helper overview-summary" id="overview-summary" role="status"></p><div class="schedule-scroll overview-scroll" tabindex="0" role="region" aria-label="전체 참여 현황 시간표"><div class="schedule-grid overview-grid" id="overview-grid" aria-labelledby="overview-heading" aria-describedby="overview-summary"></div></div><section class="overview-detail" id="overview-detail" aria-labelledby="overview-detail-heading" tabindex="0"></section>`;
+  container.innerHTML = `<h2 id="overview-heading">전체 참여 현황</h2><div class="overview-filters" role="group" aria-label="결과 필터">${Object.entries(filterLabels).map(([key, label]) => `<button class="quiet-button" type="button" data-filter="${key}" aria-pressed="${state.filter === key}" aria-controls="overview-grid">${label}</button>`).join('')}</div><p class="sr-only overview-summary" id="overview-summary" role="status"></p><div class="schedule-scroll overview-scroll" tabindex="0" role="region" aria-label="전체 참여 현황 시간표"><div class="schedule-grid overview-grid" id="overview-grid" aria-labelledby="overview-heading" aria-describedby="overview-summary"></div></div><section class="overview-detail" id="overview-detail" aria-labelledby="overview-detail-heading" tabindex="0"></section>`;
   const grid = container.querySelector('#overview-grid'), scroll = container.querySelector('.overview-scroll'), detail = container.querySelector('#overview-detail');
   const drawDetail = () => {
     const people = overviewSlotDetails(model, state.slot);
@@ -59,7 +58,7 @@ export function mountAvailabilityOverview(container, data, state) {
     };
     bindGridKeyboard(grid, model.dates);
     const matching = model.slots.filter(slot => matchesOverviewFilter(model.counts[slot], model, state.filter)).length;
-    const summary = !model.total ? '아직 저장된 응답이 없어요.' : state.filter === 'unanimous' && !matching ? '모두 가능한 시간이 없어요. 가장 많이 가능한 시간을 확인해 보세요.' : state.filter === 'best' && !matching ? '아직 가능한 시간으로 선택한 사람이 없어요.' : state.filter === 'all' ? `${model.total}명의 저장된 응답을 표시해요.` : `${filterLabels[state.filter]}: ${matching}칸 / 전체 기간 기준${state.filter === 'best' ? `, 최대 ${model.maximum}명` : ''}`;
+    const summary = !model.total ? '아직 저장된 응답이 없어요.' : state.filter === 'best' && !matching ? '아직 가능한 시간으로 선택한 사람이 없어요.' : state.filter === 'all' ? `${model.total}명의 저장된 응답을 표시해요.` : `${filterLabels[state.filter]}: ${matching}칸 / 전체 기간 기준${state.filter === 'best' ? `, 최대 ${model.maximum}명` : ''}`;
     container.querySelector('#overview-summary').textContent = summary + ' 흐린 칸도 눌러 상세 내용을 볼 수 있어요.';
     scroll.scrollLeft = position.left; scroll.scrollTop = position.top;
     drawDetail();
