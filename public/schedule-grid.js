@@ -10,12 +10,36 @@ export function rectangleSlots(columns, origin, end) {
   }
   return slots;
 }
+export function toggleColumnSelection(current, slots, blocked = () => false) {
+  const allowed = slots.filter(slot => !blocked(slot));
+  const remove = allowed.length > 0 && allowed.every(slot => current.has(slot));
+  const next = new Set(current);
+  for (const slot of allowed) { if (remove) next.delete(slot); else next.add(slot); }
+  return next;
+}
+function focusGridSlot(grid, button) {
+  grid.querySelector('[tabindex="0"]')?.setAttribute('tabindex', '-1');
+  button.tabIndex = 0; button.focus({ preventScroll: true });
+}
+export function bindGridKeyboard(grid, columns) {
+  const buttons = [...grid.querySelectorAll('[data-slot]')];
+  for (const button of buttons) button.onkeydown = event => {
+    const [column, minute] = button.dataset.slot.split('|');
+    let x = columns.map(String).indexOf(column), y = Number(minute);
+    if (event.key === 'ArrowLeft') x--; else if (event.key === 'ArrowRight') x++; else if (event.key === 'ArrowUp') y -= 30; else if (event.key === 'ArrowDown') y += 30;
+    else if (event.key === 'Home') y = Number(buttons[0].dataset.slot.split('|')[1]);
+    else if (event.key === 'End') y = Number(buttons.at(-1).dataset.slot.split('|')[1]); else return;
+    event.preventDefault(); x = Math.max(0, Math.min(columns.length - 1, x));
+    const target = buttons.find(item => item.dataset.slot === columns[x] + '|' + y);
+    if (target) { focusGridSlot(grid, target); target.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+  };
+}
 
 // Meeting availability and weekly commitments share pointer, touch and keyboard behavior.
 export function bindScheduleGrid(grid, scroll, { columns, read, write, blocked = () => false, locked = () => false, touch, preview, commit }) {
   let gesture = null, frame = 0, suppress = false;
   const buttons = [...grid.querySelectorAll('[data-slot]')];
-  const focus = button => { grid.querySelector('[tabindex="0"]')?.setAttribute('tabindex', '-1'); button.tabIndex = 0; button.focus({ preventScroll: true }); };
+  const focus = button => focusGridSlot(grid, button);
   const paint = () => {
     const next = new Set(gesture.initial);
     for (const slot of rectangleSlots(columns, gesture.origin, gesture.end)) if (!blocked(slot)) { if (gesture.value) next.add(slot); else next.delete(slot); }
@@ -51,17 +75,9 @@ export function bindScheduleGrid(grid, scroll, { columns, read, write, blocked =
       const next = new Set(read()); if (next.has(button.dataset.slot)) next.delete(button.dataset.slot); else next.add(button.dataset.slot);
       write(next); focus(button); preview(); commit();
     };
-    button.onkeydown = event => {
-      const [column, minute] = button.dataset.slot.split('|');
-      let x = columns.map(String).indexOf(column), y = Number(minute);
-      if (event.key === 'ArrowLeft') x--; else if (event.key === 'ArrowRight') x++; else if (event.key === 'ArrowUp') y -= 30; else if (event.key === 'ArrowDown') y += 30;
-      else if (event.key === 'Home') y = Number(buttons[0].dataset.slot.split('|')[1]);
-      else if (event.key === 'End') y = Number(buttons.at(-1).dataset.slot.split('|')[1]); else return;
-      event.preventDefault(); x = Math.max(0, Math.min(columns.length - 1, x));
-      const target = buttons.find(item => item.dataset.slot === columns[x] + '|' + y);
-      if (target) { focus(target); target.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
-    };
+
   }
+  bindGridKeyboard(grid, columns);
   grid.onpointerdown = event => {
     const button = event.target.closest('[data-slot]');
     if (!button || locked() || event.button !== 0 || blocked(button.dataset.slot) || (event.pointerType === 'touch' && !touch())) return;

@@ -4,8 +4,10 @@ import { requestApi } from './backend.js';
 import { pageUrl, pageMarkup } from './navigation.js';
 import { mountEverytimeImport } from './everytime-import.js';
 import { mountFixedGrid, weekOrder, fixedDayStart, fixedDayEnd } from './fixed-grid.js';
-import { bindScheduleGrid, timeAxisMarkup } from './schedule-grid.js';
+import { bindScheduleGrid, timeAxisMarkup, toggleColumnSelection } from './schedule-grid.js';
 import { mountParticipantTable } from './participant-table.js';
+import { mountAvailabilityOverview } from './availability-overview.js';
+const overviewState = { filter: 'all', slot: null };
 let fixedPainter;
 const days = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -113,7 +115,7 @@ async function renderMeeting() {
   responseVersion = savedMeeting.mine?.version || 0;
   selected = new Set((savedMeeting.mine?.slots || []).filter(slot => !blockedBy(slot)));
   const shareUrl = new URL(pageUrl('/m/' + meetingId), location.origin).href;
-  renderPage( '<a class="back-link" href="/app">내 약속으로 돌아가기</a>' + appTop(meeting.title, `${dateLabel(meeting.start_date)} ~ ${dateLabel(meeting.end_date)} / 한국 표준시`) + `<div class="share-panel"><h2>${params.has('created') ? '참여 링크가 만들어졌어요.' : '이 링크로 함께 시간을 모아요.'}</h2><div class="share-controls"><label class="sr-only" for="share-link">참여 링크</label><input id="share-link" readonly value="${escape(shareUrl)}"><button class="button" id="copy-link" type="button">링크 복사</button><button class="quiet-button" id="native-share" type="button" ${typeof navigator.share !== 'function' ? 'hidden' : ''}>공유하기</button></div><p class="helper" id="copy-status" role="status">링크를 받은 사람은 로그인 후 가능한 시간을 제출할 수 있어요.</p></div><div class="response-note" id="response-note" ${savedMeeting.mine ? '' : 'hidden'}>저장된 응답을 불러왔어요. 시간을 수정한 뒤 다시 저장할 수 있어요.</div><div class="vote-layout"><section aria-labelledby="vote-heading"><div class="vote-toolbar"><h2 id="vote-heading">가능한 시간을 선택해 주세요</h2><button class="quiet-button" type="button" id="select-all">고정 일정 제외 모두 선택</button><button class="quiet-button" type="button" id="clear-all">선택 해제</button></div><p class="vote-help" id="grid-help">시간을 누르거나 드래그해 선택하세요. 키보드는 방향키로 이동하고 Space로 선택해요. 빗금 친 고정 일정은 제외돼요.</p><div class="paint-options"><button class="button secondary" id="paint-toggle" type="button" aria-pressed="false">드래그로 칠하기</button><span class="helper">전체 기간을 한눈에 보고 영역을 칠해 보세요.</span></div><div class="schedule-scroll" tabindex="0" role="region" aria-label="시간표 스크롤"><div class="schedule-grid" id="schedule-grid" aria-describedby="grid-help"></div></div><p class="privacy-note response-sharing-note">제출한 이름과 가능한 시간은 약속 링크를 가진 로그인 사용자에게 보여요. 고정 일정의 이름과 내용은 공유하지 않아요.</p><div class="vote-save"><span id="selection-count"></span><button class="button" id="save-response" type="button">가능한 시간 저장</button></div><p id="form-status" class="inline-status" role="status"></p><p class="privacy-note">고정 일정은 <a href="/app?tab=fixed">내 고정 일정</a>에서 관리할 수 있어요.</p></section><aside class="results-panel" id="results" aria-labelledby="results-heading"></aside></div><section id="participant-availability" aria-labelledby="participant-heading"></section>`);
+  renderPage( '<a class="back-link" href="/app">내 약속으로 돌아가기</a>' + appTop(meeting.title, `${dateLabel(meeting.start_date)} ~ ${dateLabel(meeting.end_date)} / 한국 표준시`) + `<div class="share-panel"><h2>${params.has('created') ? '참여 링크가 만들어졌어요.' : '이 링크로 함께 시간을 모아요.'}</h2><div class="share-controls"><label class="sr-only" for="share-link">참여 링크</label><input id="share-link" readonly value="${escape(shareUrl)}"><button class="button" id="copy-link" type="button">링크 복사</button><button class="quiet-button" id="native-share" type="button" ${typeof navigator.share !== 'function' ? 'hidden' : ''}>공유하기</button></div><p class="helper" id="copy-status" role="status">링크를 받은 사람은 로그인 후 가능한 시간을 제출할 수 있어요.</p></div><div class="response-note" id="response-note" ${savedMeeting.mine ? '' : 'hidden'}>저장된 응답을 불러왔어요. 시간을 수정한 뒤 다시 저장할 수 있어요.</div><div class="vote-layout"><section aria-labelledby="vote-heading"><div class="vote-toolbar"><h2 id="vote-heading">가능한 시간을 선택해 주세요</h2><button class="quiet-button" type="button" id="select-all">고정 일정 제외 모두 선택</button><button class="quiet-button" type="button" id="clear-all">선택 해제</button></div><p class="vote-help" id="grid-help">시간을 누르거나 드래그해 선택하세요. 키보드는 방향키로 이동하고 Space로 선택해요. 빗금 친 고정 일정은 제외돼요.</p><div class="paint-options"><button class="button secondary" id="paint-toggle" type="button" aria-pressed="false">드래그로 칠하기</button><span class="helper">날짜 제목을 누르면 해당 날짜만 전체 선택하거나 해제할 수 있어요.</span><a class="quiet-button" href="#availability-overview">전체 현황 보기</a></div><div class="schedule-scroll" tabindex="0" role="region" aria-label="시간표 스크롤"><div class="schedule-grid" id="schedule-grid" aria-describedby="grid-help"></div></div><p class="privacy-note response-sharing-note">제출한 이름과 가능한 시간은 약속 링크를 가진 로그인 사용자에게 보여요. 고정 일정의 이름과 내용은 공유하지 않아요.</p><div class="vote-save"><span id="selection-count"></span><button class="button" id="save-response" type="button">가능한 시간 저장</button></div><p id="form-status" class="inline-status" role="status"></p><p class="privacy-note">고정 일정은 <a href="/app?tab=fixed">내 고정 일정</a>에서 관리할 수 있어요.</p></section><aside class="results-panel" id="results" aria-labelledby="results-heading"></aside></div><section id="participant-availability" aria-labelledby="participant-heading"></section>`);
   document.querySelector('#copy-link').onclick = async () => {
     try { await navigator.clipboard.writeText(shareUrl); document.querySelector('#copy-status').textContent = '링크를 복사했어요. 함께할 사람에게 보내주세요.'; }
     catch { const input = document.querySelector('#share-link'); input.focus(); input.select(); document.querySelector('#copy-status').textContent = '주소를 선택했어요. 복사 단축키로 복사해 주세요.'; }
@@ -137,23 +139,41 @@ function drawGrid(focusSlot) {
   const position = { left: scroll.scrollLeft, top: scroll.scrollTop };
   const tabStop = focusSlot || dates[0] + '|' + minutes[0];
   grid.style.setProperty('--schedule-columns', String(dates.length));
-  grid.innerHTML = timeAxisMarkup(minutes) + dates.map(date => `<div class="slot-col"><div class="col-head">${dateLabel(date)}</div>${minutes.map(minute => {
+  grid.innerHTML = timeAxisMarkup(minutes) + dates.map(date => `<div class="slot-col"><button type="button" class="col-head select-date" data-select-date="${date}">${dateLabel(date)}</button>${minutes.map(minute => {
     const slot = date + '|' + minute; const blocked = blockedBy(slot); const pressed = selected.has(slot); const count = savedMeeting.counts[slot] || 0;
     return `<button type="button" class="slot${blocked ? ' blocked' : ''}" data-slot="${slot}" aria-pressed="${pressed}" ${blocked ? 'aria-disabled="true"' : ''} tabindex="${slot === tabStop ? '0' : '-1'}" aria-label="${dateLabel(date)} ${timeLabel(minute)}부터 ${timeLabel(minute + 30)}까지, ${blocked ? escape(blocked.name) + ' 고정 일정' : pressed ? '선택됨' : '선택 안 됨'}, ${count}명 가능">${blocked ? '고정' : pressed ? '✓' : ''}</button>`;
   }).join('')}</div>`).join('') + timeAxisMarkup(minutes, true);
   schedulePainter = bindScheduleGrid(grid, scroll, { columns: dates, read: () => selected, write: value => { selected = value; }, blocked: blockedBy, locked: () => savingResponse, touch: () => touchPainting, preview: () => { refreshSlotButtons(); updateCount(); }, commit: changed });
   scroll.scrollLeft = position.left; scroll.scrollTop = position.top;
-  updateCount();
+  for (const button of grid.querySelectorAll('[data-select-date]')) button.onclick = () => {
+    if (savingResponse) return;
+    schedulePainter?.finish(false);
+    selected = toggleColumnSelection(selected, meetingSlots(meeting).filter(slot => slot.startsWith(button.dataset.selectDate + '|')), blockedBy);
+    refreshSlotButtons(); changed();
+  };
+  refreshDateButtons(); updateCount();
   lockSelection();
 }
 let touchPainting = false;
 let schedulePainter;
-function refreshSlotButtons() { document.querySelectorAll('[data-slot]').forEach(button => { const pressed = selected.has(button.dataset.slot); button.setAttribute('aria-pressed', String(pressed)); if (!button.hasAttribute('aria-disabled')) button.textContent = pressed ? '✓' : ''; button.setAttribute('aria-label', button.getAttribute('aria-label').replace(/선택됨|선택 안 됨/, pressed ? '선택됨' : '선택 안 됨')); }); }
-function lockSelection() { document.querySelectorAll('[data-slot], #paint-toggle, #select-all, #clear-all, #refresh-results').forEach(button => { button.disabled = savingResponse; }); }
+function refreshSlotButtons() { document.querySelectorAll('#schedule-grid [data-slot]').forEach(button => { const pressed = selected.has(button.dataset.slot); button.setAttribute('aria-pressed', String(pressed)); if (!button.hasAttribute('aria-disabled')) button.textContent = pressed ? '✓' : ''; button.setAttribute('aria-label', button.getAttribute('aria-label').replace(/선택됨|선택 안 됨/, pressed ? '선택됨' : '선택 안 됨')); }); refreshDateButtons(); }
+function refreshDateButtons() {
+  for (const button of document.querySelectorAll('[data-select-date]')) {
+    const allowed = meetingSlots(savedMeeting.meeting).filter(slot => slot.startsWith(button.dataset.selectDate + '|') && !blockedBy(slot));
+    const count = allowed.filter(slot => selected.has(slot)).length;
+    const all = allowed.length > 0 && count === allowed.length;
+    button.setAttribute('aria-pressed', all ? 'true' : count ? 'mixed' : 'false');
+    button.setAttribute('aria-label', `${dateLabel(button.dataset.selectDate)} 가능한 시간 ${all ? '선택 해제' : '모두 선택'}`);
+    button.title = allowed.length ? '고정 일정을 제외한 해당 날짜의 시간을 선택하거나 해제해요.' : '고정 일정으로 선택 가능한 시간이 없어요.';
+    button.disabled = savingResponse || !allowed.length;
+  }
+}
+function lockSelection() { document.querySelectorAll('#schedule-grid [data-slot], [data-select-date], #paint-toggle, #select-all, #clear-all, #refresh-results').forEach(button => { button.disabled = savingResponse; }); refreshDateButtons(); }
 function drawResults() {
   const data = savedMeeting;
-  document.querySelector('#results').innerHTML = `<h2 id="results-heading">겹치는 시간을 확인해 보세요</h2><p>${data.total}명이 응답했어요.</p>${data.candidates.length ? `<ul class="candidate-list">${data.candidates.map(candidate => `<li><strong>${dateLabel(candidate.date)}</strong><span>${timeLabel(candidate.start)} ~ ${timeLabel(candidate.end)}</span><br><span class="${candidate.count === data.total ? 'all-available' : ''}">${candidate.count === data.total ? '모두 가능해요' : '일부만 가능해요'} (${candidate.count}/${data.total}명)</span></li>`).join('')}</ul>` : `<div class="empty"><p>${data.total ? '아직 함께 가능한 시간이 없어요. 시간 범위를 확인하거나 응답을 수정해 보세요.' : '첫 응답을 기다리고 있어요. 가능한 시간을 저장하면 결과가 나타나요.'}</p></div>`}<div class="participants"><h3>참여한 사람</h3><a class="quiet-button" href="#participant-availability">참여자별 시간표 보기</a><p>${data.participants.length ? data.participants.map(person => escape(person.name)).join(', ') : '아직 참여한 사람이 없어요.'}</p><button class="quiet-button" id="refresh-results" type="button">결과 새로고침</button><p class="helper" id="results-status" role="status"></p></div>`;
+  document.querySelector('#results').innerHTML = `<h2 id="results-heading">겹치는 시간을 확인해 보세요</h2><p>${data.total}명이 응답했어요.</p><section id="availability-overview" aria-labelledby="overview-heading"></section>${data.candidates.length ? `<ul class="candidate-list">${data.candidates.map(candidate => `<li><strong>${dateLabel(candidate.date)}</strong><span>${timeLabel(candidate.start)} ~ ${timeLabel(candidate.end)}</span><br><span class="${candidate.count === data.total ? 'all-available' : ''}">${candidate.count === data.total ? '모두 가능해요' : '일부만 가능해요'} (${candidate.count}/${data.total}명)</span></li>`).join('')}</ul>` : `<div class="empty"><p>${data.total ? '아직 함께 가능한 시간이 없어요. 시간 범위를 확인하거나 응답을 수정해 보세요.' : '첫 응답을 기다리고 있어요. 가능한 시간을 저장하면 결과가 나타나요.'}</p></div>`}<div class="participants"><h3>참여한 사람</h3><a class="quiet-button" href="#participant-availability">참여자별 시간표 보기</a><p>${data.participants.length ? data.participants.map(person => escape(person.name)).join(', ') : '아직 참여한 사람이 없어요.'}</p><button class="quiet-button" id="refresh-results" type="button">결과 새로고침</button><p class="helper" id="results-status" role="status"></p></div>`;
   document.querySelector('#refresh-results').onclick = async event => { const button = event.currentTarget; button.disabled = true; try { const result = await api('/meetings/' + meetingId); savedMeeting = { ...result, mine: savedMeeting.mine }; drawResults(); drawGrid(); document.querySelector('#refresh-results').focus(); } catch (error) { document.querySelector('#results-status').textContent = error.message; button.disabled = false; } };
+  mountAvailabilityOverview(document.querySelector('#availability-overview'), data, overviewState);
   mountParticipantTable(document.querySelector('#participant-availability'), data);
   lockSelection();
 }

@@ -53,12 +53,12 @@ try {
   const blocked = await alice.$('.slot[aria-disabled="true"]'); await blocked.click();
   assert.equal(await blocked.evaluate(element => element.getAttribute('aria-pressed')), 'false');
   await alice.click('#select-all'); assert.equal(await alice.$$eval('.slot[aria-pressed="true"]', elements => elements.length), 4);
-  await alice.focus(`[data-slot="${tomorrow}|600"]`); await alice.keyboard.press('Space');
-  assert.equal(await alice.$eval(`[data-slot="${tomorrow}|600"]`, element => element.getAttribute('aria-pressed')), 'false');
+  await alice.focus(`#schedule-grid [data-slot="${tomorrow}|600"]`); await alice.keyboard.press('Space');
+  assert.equal(await alice.$eval(`#schedule-grid [data-slot="${tomorrow}|600"]`, element => element.getAttribute('aria-pressed')), 'false');
   await alice.keyboard.press('ArrowDown');
   assert.equal(await alice.evaluate(() => document.activeElement.dataset.slot), tomorrow + '|630');
   await alice.keyboard.press('Space');
-  assert.equal(await alice.$eval(`[data-slot="${tomorrow}|630"]`, element => element.getAttribute('aria-pressed')), 'false');
+  assert.equal(await alice.$eval(`#schedule-grid [data-slot="${tomorrow}|630"]`, element => element.getAttribute('aria-pressed')), 'false');
   assert.notEqual(await alice.evaluate(() => getComputedStyle(document.activeElement).outlineStyle), 'none');
   await alice.click('#select-all');
   await alice.evaluate(() => { window.originalFetch = window.fetch; window.fetch = (...args) => String(args[0]).endsWith('/response') ? new Promise(resolve => { window.releaseSave = () => resolve(window.originalFetch(...args)); }) : window.originalFetch(...args); });
@@ -105,7 +105,7 @@ try {
     const result = await fetch('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: '검증용 2주 약속', start_date: date, end_date: end, start_hour: 9, end_hour: 12 }) }); return result.json();
   }, tomorrow);
   const day = offset => new Date(Date.parse(tomorrow) + offset * 86400000).toISOString().slice(0, 10);
-  const cell = (date, minute) => `[data-slot="${date}|${minute}"]`;
+  const cell = (date, minute) => `#schedule-grid [data-slot="${date}|${minute}"]`;
   const point = async (page, selector) => { const box = await (await page.$(selector)).boundingBox(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; };
   const drag = async (page, first, last) => { const start = await point(page, first); const end = await point(page, last); await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(end.x, end.y, { steps: 8 }); await page.mouse.up(); };
   await navigate(alice, origin + extended.path); await loaded(alice, '#save-response');
