@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const types = { html: 'text/html; charset=utf-8', css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', svg: 'image/svg+xml' };
 const assets = {};
-for (const name of ['index.html', 'styles.css', 'tokens.css', 'app.js', 'demo.js', 'favicon.svg']) assets['/' + name] = { body: await readFile(new URL('public/' + name, root), 'utf8'), type: types[name.split('.').pop()] };
+for (const name of ['index.html', 'styles.css', 'tokens.css', 'app.js', 'demo.js', 'auth-ui.js', 'favicon.svg']) assets['/' + name] = { body: await readFile(new URL('public/' + name, root), 'utf8'), type: types[name.split('.').pop()] };
 let worker = await readFile(new URL('worker/index.js', root), 'utf8');
 worker = worker.replace("import { meetingSlots, effectiveSlots, summarize } from './scheduling.js';", await readFile(new URL('worker/scheduling.js', root), 'utf8'));
 worker = worker.replace('const STATIC_ASSETS = {};', () => 'const STATIC_ASSETS = ' + JSON.stringify(assets) + ';');

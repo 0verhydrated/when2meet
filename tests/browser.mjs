@@ -23,13 +23,18 @@ try {
   await alice.setViewport({ width: 1280, height: 800 });
   await navigate(alice, origin);
   assert.equal(await alice.$eval('body', element => /시간표는 한 번|우리의 빈 시간이 만나는 곳|우리의 시간을 모으는 시작|한 번 등록하고, 매주 편하게/.test(element.textContent)), false);
-  await alice.click('#signup-link'); await loaded(alice, '#signin');
-  assert.match(await alice.$eval('#signin', element => element.getAttribute('href')), /^\/signin-with-chatgpt\?return_to=/);
-  await alice.click('#signin'); await loaded(alice, '#profile-form');
-  await aliceContext.setCookie({ name: 'when2meet_local', value: 'qa-alice-' + runId, url: origin, httpOnly: true, sameSite: 'Lax' });
-  await navigate(alice, origin + '/app?signup=1'); await loaded(alice, '#profile-form');
-  await alice.type('#profile-name', '검증용 주최자');
-  await alice.click('#profile-form button'); await loaded(alice, '.app-tabs');
+  await alice.click('#signup-link'); await loaded(alice, '#auth-form');
+  assert.equal(await alice.$('a[href*="chatgpt"]'), null);
+  await alice.type('#auth-name', '검증용 주최자');
+  await alice.type('#auth-email', `qa-alice-${runId}@example.com`);
+  await alice.type('#auth-password', 'test-password-2026');
+  await alice.type('#auth-confirm', 'different-password');
+  await alice.click('#auth-form button');
+  assert.match(await alice.$eval('#auth-status', element => element.textContent), /일치하지/);
+  await fill(alice, '#auth-confirm', 'test-password-2026');
+  await alice.screenshot({ path: fileURLToPath(new URL('signup-desktop.png', output)), fullPage: true });
+  await alice.click('#auth-form button'); await loaded(alice, '.app-tabs');
+  assert.equal(await alice.evaluate(() => document.cookie.includes('when2meet_session')), false);
   await navigate(alice, origin + '/app?tab=fixed'); await loaded(alice, '#fixed-form');
   await alice.type('#fixed-name', '비공개 고정 수업'); await alice.select('#fixed-day', weekday); await alice.select('#fixed-start', '540'); await alice.select('#fixed-end', '600');
   await alice.click('#fixed-form button'); await loaded(alice, '[data-delete]');
@@ -69,9 +74,11 @@ try {
   const bobContext = await browser.createBrowserContext(); const bob = await bobContext.newPage();
   bob.on('pageerror', error => failures.push(error.message));
   await bob.setViewport({ width: 375, height: 812, isMobile: true, hasTouch: true });
-  await navigate(bob, link); await loaded(bob, '#signin');
-  await bobContext.setCookie({ name: 'when2meet_local', value: 'qa-bob-' + runId, url: origin, httpOnly: true, sameSite: 'Lax' });
-  await navigate(bob, link); await loaded(bob, '#profile-form'); await bob.type('#profile-name', '검증용 참여자'); await bob.click('#profile-form button'); await loaded(bob, '#save-response');
+  await navigate(bob, link); await loaded(bob, '#auth-form');
+  await bob.click('#auth-switch'); await loaded(bob, '#auth-name');
+  await bob.type('#auth-name', '검증용 참여자'); await bob.type('#auth-email', `qa-bob-${runId}@example.com`); await bob.type('#auth-password', 'test-password-2026'); await bob.type('#auth-confirm', 'test-password-2026');
+  await bob.screenshot({ path: fileURLToPath(new URL('signup-mobile.png', output)), fullPage: true });
+  await bob.click('#auth-form button'); await loaded(bob, '#save-response');
   assert.equal(await bob.$$eval('.slot[aria-disabled="true"]', elements => elements.length), 0);
   assert.equal((await bob.content()).includes('비공개 고정 수업'), false);
   await bob.click('#select-all'); await bob.click('#save-response');
@@ -146,6 +153,6 @@ try {
   await touch.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
   assert.equal(await bob.$$eval('.slot[aria-pressed="true"]', elements => elements.length), 6);
   assert.deepEqual(failures, []);
-  const result = { passed: true, signup: 'local identity adapter, production uses platform ChatGPT sign-in', link, checks: ['no duration input', 'fragmentary promotional slogans removed', 'profile registration', 'fixed schedule persistence', 'working generated participation URL', 'clipboard action', 'locked excluded slots', 'keyboard Space and arrows', 'visible focus', 'two isolated participants', 'private schedule details hidden', 'response persistence', 'live fixed-schedule changes reflected in aggregate', 'mobile overflow', 'unknown meeting error', 'all 14 dates visible in same grid', 'reverse rectangular paint and erase', 'rectangle shrink restores outside selection', 'painted selection persists', 'mobile touch rectangle painting', 'keyboard moves across weeks', 'sticky mobile time axis', 'edge auto-scroll', 'pointer cancellation restores selection'], browserErrors: failures };
+  const result = { passed: true, signup: 'standalone email/password registration without email verification', link, checks: ['no duration input', 'fragmentary promotional slogans removed', 'profile registration', 'fixed schedule persistence', 'working generated participation URL', 'clipboard action', 'locked excluded slots', 'keyboard Space and arrows', 'visible focus', 'two isolated participants', 'private schedule details hidden', 'response persistence', 'live fixed-schedule changes reflected in aggregate', 'mobile overflow', 'unknown meeting error', 'all 14 dates visible in same grid', 'reverse rectangular paint and erase', 'rectangle shrink restores outside selection', 'painted selection persists', 'mobile touch rectangle painting', 'keyboard moves across weeks', 'sticky mobile time axis', 'edge auto-scroll', 'pointer cancellation restores selection'], browserErrors: failures };
   await writeFile(new URL('browser-results.json', output), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result, null, 2));
 } finally { await browser.close(); }

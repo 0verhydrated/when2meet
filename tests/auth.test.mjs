@@ -1,0 +1,48 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { handleNative } from '../server/index.mjs';
+import { openDatabase } from '../scripts/database.mjs';
+
+test('standalone registration without email verification, sessions and protected data', async () => {
+  const DB = openDatabase();
+  const password = 'test-only-password-2026';
+  const request = async (path, { method = 'GET', data, cookie, origin = 'https://when2meet.example', headers: extra = {} } = {}) => {
+    const response = await handleNative(new Request('https://when2meet.example/api' + path, { method, headers: { 'Content-Type': 'application/json', Origin: origin, ...(cookie ? { Cookie: cookie } : {}), ...extra }, ...(data ? { body: JSON.stringify(data) } : {}) }), DB, 'test');
+    return { status: response.status, body: await response.json(), cookie: response.headers.get('set-cookie')?.split(';')[0], headers: response.headers };
+  };
+  const signup = await request('/auth/register', { method: 'POST', data: { name: '가', email: 'Alice@Example.com', password } });
+  assert.equal(signup.status, 201);
+  assert.match(signup.headers.get('set-cookie'), /HttpOnly; SameSite=Lax/);
+  assert.match(signup.headers.get('set-cookie'), /; Secure/);
+  assert.match(signup.cookie, /^__Host-when2meet_session=/);
+  const own = await request('/me', { cookie: signup.cookie });
+  assert.equal(own.body.user.email, 'alice@example.com');
+  assert.equal(own.body.auth_mode, 'password');
+  assert.equal(own.body.authenticated, true);
+  const account = DB.sqlite.prepare('SELECT * FROM auth_accounts').get();
+  assert.equal(account.password_hash.includes(password), false);
+  assert.match(account.password_hash, /^scrypt\$/);
+  assert.equal(DB.sqlite.prepare('SELECT token_hash FROM auth_sessions').get().token_hash.includes(signup.cookie.split('=')[1]), false);
+  assert.equal((await request('/auth/register', { method: 'POST', data: { name: '나', email: 'alice@example.com', password } })).status, 409);
+  assert.equal(DB.sqlite.prepare('SELECT COUNT(*) AS count FROM users').get().count, 1);
+  assert.equal((await request('/auth/login', { method: 'POST', data: { email: 'alice@example.com', password: 'wrong-password-long' } })).status, 401);
+  assert.equal((await request('/auth/register', { method: 'POST', data: { name: '짧음', email: 'short@example.com', password: 'short' } })).status, 400);
+  assert.equal((await request('/auth/register', { method: 'POST', data: { name: '나', email: 'bob@example.com', password }, origin: 'https://evil.example' })).status, 403);
+  assert.equal((await request('/me', { headers: { 'oai-authenticated-user-id': own.body.user.id, 'oai-authenticated-user-email': 'alice@example.com' } })).body.authenticated, false);
+  assert.equal((await request('/fixed', { method: 'PUT', data: { items: [], version: 0 } })).status, 401);
+  assert.equal((await request('/fixed', { cookie: signup.cookie, method: 'PUT', data: { items: [{ name: '비공개 수업', weekday: 0, start: 540, end: 600 }], version: 0 } })).status, 200);
+  const bob = await request('/auth/register', { method: 'POST', data: { name: '나', email: 'bob@example.com', password } });
+  assert.equal(bob.status, 201);
+  assert.deepEqual((await request('/me', { cookie: bob.cookie })).body.fixed, []);
+  assert.equal((await request('/auth/logout', { cookie: signup.cookie, method: 'POST', data: {} })).status, 200);
+  assert.equal((await request('/me', { cookie: signup.cookie })).body.authenticated, false);
+  const login = await request('/auth/login', { method: 'POST', data: { email: 'ALICE@example.com', password } });
+  assert.equal(login.status, 200);
+  assert.notEqual(login.cookie, signup.cookie);
+  assert.equal((await request('/me', { cookie: login.cookie })).body.fixed.length, 1);
+  DB.sqlite.prepare('UPDATE auth_sessions SET expires_at = 0').run();
+  assert.equal((await request('/me', { cookie: login.cookie })).body.authenticated, false);
+  for (let index = 0; index < 22; index++) await request('/auth/login', { method: 'POST', data: { email: 'alice@example.com', password } });
+  assert.equal((await request('/auth/login', { method: 'POST', data: { email: 'alice@example.com', password } })).status, 429);
+  DB.sqlite.close();
+});

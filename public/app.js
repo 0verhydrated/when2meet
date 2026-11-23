@@ -1,4 +1,5 @@
 import './demo.js';
+import { renderAuth } from './auth-ui.js';
 const days = ['월', '화', '수', '목', '금', '토', '일'];
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -33,17 +34,21 @@ function appTop(title, description, action = '') { return `<div class="app-top">
 function appTabs(tab) { return `<nav class="app-tabs" aria-label="일정 메뉴"><a href="/app" ${tab === 'meetings' ? 'aria-current="page"' : ''}>내 약속</a><a href="/app?tab=fixed" ${tab === 'fixed' ? 'aria-current="page"' : ''}>내 고정 일정</a><a href="/app?tab=account" ${tab === 'account' ? 'aria-current="page"' : ''}>내 계정</a></nav>`; }
 function errorView(error) { appContent.innerHTML = appTop('불러오지 못했어요', error.message) + '<div class="error-panel"><p>연결 상태와 링크 주소를 확인한 뒤 다시 시도해 주세요.</p><div class="form-actions"><button class="button" type="button" id="retry">다시 시도</button><a class="quiet-button" href="/app">내 약속으로</a></div></div>'; document.querySelector('#retry').onclick = () => location.reload(); }
 function authView() {
-  const returnTo = location.pathname + location.search;
-  appContent.innerHTML = `<div class="auth-panel"><h1 id="app-heading">로그인하고 일정을 저장하세요</h1><p>계정을 만들면 내 고정 일정을 저장하고, 여러 약속에 자동으로 반영할 수 있어요.</p><a class="button" id="signin" target="_top" href="/signin-with-chatgpt?return_to=${encodeURIComponent(returnTo)}">ChatGPT로 ${params.has('signup') ? '회원가입' : '로그인'}</a><p class="privacy-note">처음이라면 로그인 후 이름을 등록하면 가입이 완료돼요. 고정 일정의 내용은 다른 사람에게 공개되지 않아요.</p><a class="back-link" href="/">홈으로 돌아가기</a></div>`;
+  const requested = new URL(params.get('return_to') || location.pathname + location.search, location.origin);
+  const returnTo = requested.origin === location.origin && (requested.pathname === '/app' || /^\/m\/[a-f0-9]{32}$/.test(requested.pathname)) ? requested.pathname + requested.search : '/app';
+  const signup = params.has('signup');
+  renderAuth(appContent, { signup, loginUrl: '/app?return_to=' + encodeURIComponent(returnTo), signupUrl: '/app?signup=1&return_to=' + encodeURIComponent(returnTo), homeUrl: '/', unavailable: me.auth_mode === 'password' ? '' : '자체 회원가입 서버가 연결되지 않았습니다. 현재는 계정을 만들 수 없습니다.', onSubmit: async values => { await api('/auth/' + (signup ? 'register' : 'login'), { method: 'POST', body: JSON.stringify(values) }); location.href = returnTo; } });
 }
 function profileView(editing = false) {
-  appContent.innerHTML = (editing ? appTop('내 계정', '참여자에게 표시될 이름을 관리해요.') + appTabs('account') : '') + `<div class="${editing ? 'form-panel' : 'auth-panel'}">${editing ? '' : '<h1 id="app-heading">어떤 이름으로 만날까요?</h1><p>약속에 표시할 이름을 등록하면 회원가입이 완료돼요.</p>'}<form id="profile-form"><div class="field"><label for="profile-name">이름</label><input id="profile-name" name="name" autocomplete="nickname" maxlength="30" required value="${escape(me.user?.name || '')}"></div><p id="form-status" class="inline-status" role="status"></p><div class="form-actions"><button class="button" type="submit">${editing ? '이름 저장' : '가입하고 시작하기'}</button>${editing ? '<a class="quiet-button" target="_top" href="/signout-with-chatgpt?return_to=%2F">로그아웃</a>' : ''}</div></form></div>`;
+  appContent.innerHTML = (editing ? appTop('내 계정', '참여자에게 표시될 이름을 관리해요.') + appTabs('account') : '') + `<div class="${editing ? 'form-panel' : 'auth-panel'}">${editing ? '' : '<h1 id="app-heading">어떤 이름으로 만날까요?</h1><p>약속에 표시할 이름을 등록하면 회원가입이 완료돼요.</p>'}<form id="profile-form"><div class="field"><label for="profile-name">이름</label><input id="profile-name" name="name" autocomplete="nickname" maxlength="30" required value="${escape(me.user?.name || '')}"></div><p id="form-status" class="inline-status" role="status"></p><div class="form-actions"><button class="button" type="submit">${editing ? '이름 저장' : '가입하고 시작하기'}</button>${editing ? '<button class="quiet-button" type="button" id="logout">로그아웃</button>' : ''}</div></form></div>`;
   document.querySelector('#profile-form').onsubmit = async event => {
     event.preventDefault(); const button = event.submitter; button.disabled = true; button.textContent = '저장 중…';
     try { const result = await api('/profile', { method: 'POST', body: JSON.stringify({ name: new FormData(event.target).get('name') }) }); me.user = result.user; if (editing) { status('이름을 저장했어요.'); button.textContent = '이름 저장'; } else location.reload(); }
     catch (error) { status(error.message, true); button.textContent = editing ? '이름 저장' : '가입하고 시작하기'; }
     finally { button.disabled = false; }
   };
+  const logout = document.querySelector('#logout');
+  if (logout) logout.onclick = async () => { logout.disabled = true; try { await api('/auth/logout', { method: 'POST', body: '{}' }); location.href = '/'; } catch (error) { status(error.message, true); logout.disabled = false; } };
 }
 async function renderMeetings() {
   const data = await api('/meetings');
