@@ -46,7 +46,7 @@ export async function handle(request, env, assets = STATIC_ASSETS) {
     const identity = request.headers.get('oai-authenticated-user-id');
     const user = identity ? await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(identity).first() : null;
     const publicUser = user ? { id: user.id, name: user.name, email: user.email } : null;
-    if (url.pathname === '/api/me' && request.method === 'GET') return json({ authenticated: Boolean(identity), user: publicUser, fixed: user ? JSON.parse(user.fixed_json) : [], fixed_version: user?.fixed_version || 0 });
+    if (url.pathname === '/api/me' && request.method === 'GET') return json({ authenticated: Boolean(identity), auth_mode: env.AUTH_MODE || 'platform', user: publicUser, fixed: user ? JSON.parse(user.fixed_json) : [], fixed_version: user?.fixed_version || 0 });
     check(identity, '로그인 후 이용해 주세요.', 401);
     if (url.pathname === '/api/profile' && request.method === 'POST') {
       const value = await body(request);
