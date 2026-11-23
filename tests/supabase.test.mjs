@@ -1,0 +1,50 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+
+test('Supabase RPC preserves ownership, private fixed schedules, aggregate results and stale-write protection', async () => {
+  const db = new PGlite();
+  try {
+    await db.exec("create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key, raw_user_meta_data jsonb); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$; grant usage on schema auth to authenticated, anon; grant execute on function auth.uid() to authenticated, anon;");
+    await db.exec(await readFile(new URL('../supabase/schema.sql', import.meta.url), 'utf8'));
+    const alice = '11111111-1111-4111-8111-111111111111'; const bob = '22222222-2222-4222-8222-222222222222';
+    for (const [id, name] of [[alice, '가'], [bob, '나']]) await db.query('insert into auth.users values ($1, $2)', [id, JSON.stringify({ name })]);
+    const asUser = async id => { await db.exec('reset role'); await db.query("select set_config('request.jwt.claim.sub', $1, false)", [id]); await db.exec('set role authenticated'); };
+    const api = async (path, method = 'GET', payload = {}) => (await db.query('select public.when2meet_api($1,$2,$3) result', [path, method, JSON.stringify(payload)])).rows[0].result;
+    await asUser(alice);
+    assert.equal((await api('/me')).user.name, '가');
+    assert.equal((await db.query('select * from public.profiles')).rows.length, 1);
+    await assert.rejects(db.query('select * from public.responses'), /permission denied/);
+    await assert.rejects(db.query("update public.profiles set fixed_json='[]'"), /permission denied/);
+    const date = (await db.query("select ((now() at time zone 'Asia/Seoul')::date + 1)::text day_value")).rows[0].day_value;
+    const weekday = (new Date(date + 'T00:00:00Z').getUTCDay() + 6) % 7;
+    const fixed = { items: [{ id: 'private', name: '개인 상담', weekday, start: 540, end: 600 }], version: 0 };
+    assert.equal((await api('/fixed', 'PUT', fixed)).fixed_version, 1);
+    await assert.rejects(api('/fixed', 'PUT', fixed), /다른 창/);
+    await assert.rejects(api('/fixed', 'PUT', { version: 1, items: [{ name: 'bad', weekday: 99, start: 500, end: 450 }] }), /고정 일정/);
+    const created = await api('/meetings', 'POST', { title: '스터디', start_date: date, end_date: date, start_hour: 9, end_hour: 12 });
+    assert.match(created.id, /^[a-f0-9]{32}$/);
+    const path = '/meetings/' + created.id;
+    const slots = [540, 570, 600, 630, 660, 690].map(minute => date + '|' + minute);
+    assert.equal((await api(path + '/response', 'PUT', { slots, version: 0 })).slots.length, 4);
+    await assert.rejects(api(path + '/response', 'PUT', { slots, version: 0 }), /다른 창/);
+    await assert.rejects(api(path + '/response', 'PUT', { slots: ['1999-01-01|540'], version: 1 }), /약속 범위/);
+    await asUser(bob);
+    assert.deepEqual((await api('/me')).fixed, []);
+    assert.equal((await db.query('select id from public.profiles')).rows[0].id, bob);
+    await api(path + '/response', 'PUT', { slots, version: 0 });
+    const result = await api(path);
+    assert.equal(result.total, 2);
+    assert.equal(result.counts[date + '|540'], 1);
+    assert.deepEqual(result.candidates[0], { date, start: 600, end: 720, count: 2 });
+    assert.equal(JSON.stringify(result).includes('개인 상담'), false);
+    await api('/fixed', 'PUT', { items: [{ name: '회의', weekday, start: 600, end: 660 }], version: 0 });
+    assert.equal((await api(path)).candidates[0].start, 660);
+    assert.equal((await api('/meetings')).meetings.length, 1);
+    await db.exec('reset role; set role anon');
+    await assert.rejects(api(path), /permission denied/);
+    await db.exec('reset role'); await db.query("select set_config('request.jwt.claim.sub', '', false)"); await db.exec('set role authenticated');
+    await assert.rejects(api('/me'), /로그인 후/);
+  } finally { await db.close(); }
+});

@@ -25,3 +25,13 @@ test('Pages can link to a standalone HTTPS server', () => {
   assert.match(html, /href="https:\/\/when2meet\.example\/app\?signup=1"/);
   assert.doesNotMatch(html, /chatgpt\.site/);
 });
+test('Supabase Pages runs the complete app on the public site with only a publishable key', () => {
+  execFileSync(process.execPath, [fileURLToPath(new URL('../scripts/build-pages.mjs', import.meta.url))], { env: { ...process.env, PUBLIC_SERVICE_ORIGIN: '', SUPABASE_URL: 'https://test-project.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_only' } });
+  const root = new URL('../pages-dist/', import.meta.url);
+  const html = readFileSync(new URL('index.html', root), 'utf8');
+  assert.match(html, /src="\.\/app\.js"/);
+  assert.match(html, /href="\.\/\?signup=1&amp;view=app"|href="\.\/\?signup=1&view=app"/);
+  assert.doesNotMatch(html, /서버를 연결 중|chatgpt\.site/);
+  assert.match(readFileSync(new URL('backend.js', root), 'utf8'), /test-project\.supabase\.co/);
+  assert.throws(() => execFileSync(process.execPath, [fileURLToPath(new URL('../scripts/build-pages.mjs', import.meta.url))], { env: { ...process.env, SUPABASE_URL: 'https://test-project.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_secret_forbidden' }, stdio: 'pipe' }));
+});

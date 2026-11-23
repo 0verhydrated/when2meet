@@ -32,6 +32,16 @@ Node.js 24 이상을 권장합니다. 별도의 실행 의존성 설치 없이 `
 
 공개 주소: https://0verhydrated.github.io/when2meet/
 
+#### Supabase 연결
+
+Supabase 프로젝트의 SQL Editor에서 `supabase/schema.sql`을 실행합니다. Authentication 설정에서 이메일 가입을 허용하고 이메일 확인을 끕니다. 비밀번호 최소 길이는 12자로 지정합니다. Site URL은 위 공개 주소로 설정합니다.
+
+GitHub 저장소의 Actions 변수에 `SUPABASE_URL`과 `SUPABASE_PUBLISHABLE_KEY`를 추가하면 전체 앱이 Pages 안에서 실행됩니다. 프로젝트의 공개 publishable 키 또는 anon 키만 사용합니다. 데이터베이스 비밀번호, secret 키, service_role 키는 절대로 소스나 브라우저에 넣지 않습니다. 빌드는 비공개 키를 거부합니다.
+
+비밀번호와 세션 관리는 Supabase Auth가 담당합니다. 프로필은 본인만 직접 읽을 수 있으며, 약속 데이터는 로그인한 사용자에게만 허용된 RPC로 처리합니다. 고정 일정 이름이나 다른 사람의 개별 응답은 반환하지 않고, 참여 이름과 가능한 시간 집계만 반환합니다. 수정 버전 검사와 고정 일정 자동 제외는 데이터베이스에서도 강제합니다. `tests/supabase.test.mjs`는 PostgreSQL 엔진으로 접근 제한과 일정 집계를 검사합니다.
+
+Supabase 설정이 있으면 아래의 별도 Node 서버나 `PUBLIC_SERVICE_ORIGIN`은 필요하지 않습니다. `/when2meet/?view=app`과 `/when2meet/?meeting=<id>` 형식의 주소로 가입과 약속 링크를 공유합니다.
+
 `main`에 소스를 올리면 `.github/workflows/pages.yml`이 테스트와 `npm run build:pages`를 실행하고 `pages-dist/`를 배포합니다. 별도의 패키지 설치나 배포용 비밀키는 필요하지 않습니다. 저장소 변수 `PUBLIC_SERVICE_ORIGIN`에 자체 서버의 HTTPS 원점(예: `https://when2meet.example`)을 지정하면 가입과 일정 기능이 해당 서버로 연결됩니다.
 
 GitHub Pages는 계정 정보를 저장하거나 인증 API를 실행할 수 없습니다. 자체 서버가 설정되지 않으면 ChatGPT로 이동하지 않고 가입·로그인 화면에 서버 미연결 상태를 표시합니다. 이 상태에서는 입력과 제출을 비활성화하며 계정을 만들었다고 표시하거나 비밀번호를 브라우저 저장소에 보관하지 않습니다. 실제 회원가입을 받으려면 아래 서버 배포가 필요합니다.
