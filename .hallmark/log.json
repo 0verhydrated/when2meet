@@ -1,0 +1,26 @@
+[
+ {
+  "scope": "app",
+  "shape": "app screen",
+  "theme": "Timepick reference by request",
+  "axes": "light/grotesk-sans/cool",
+  "hero": "live weekly exclusion grid",
+  "nav": "wordmark and task links",
+  "footer": "compact timezone footer",
+  "imagery": "live product interface",
+  "photos": [],
+  "entry": "public/index.html",
+  "fingerprint": "split-grid/weekly-exclusions/green-state/white-shell/task-navigation/compact-footer",
+  "sections": [
+   "interactive preview",
+   "usage",
+   "questions",
+   "application"
+  ],
+  "signature": "fixed weekly hours subtract from available meeting slots",
+  "waived": [],
+  "prompt": "When2Meet, Korean Timepick-like scheduling with recurring exclusions, accounts and participation links",
+  "date": "2026-11-23",
+  "mode": "build"
+ }
+]

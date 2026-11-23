@@ -1,0 +1,9 @@
+{
+  "date": "2026-11-23",
+  "static_and_render": { "floor_fail": 0, "reflex": 0, "warnings": ["Gate 3 dismissed: semantic error and saved-response state stripes"] },
+  "hero_review": { "reviewer": "subagent", "findings": 3, "visual_findings_resolved": 3, "contrast": "Measured from declared foreground/background tokens, recorded in final verification" },
+  "finish_review": { "reviewer": "subagent", "findings": 5, "resolved": 5 },
+  "unit_api_tests": { "passed": 3, "failed": 0 },
+  "browser": { "passed": true, "javascript_errors": 0, "tested": ["registration with local identity adapter", "fixed schedule persistence and private contents", "generated participation link", "clipboard", "two participants", "response persistence and updated exclusions", "Space and arrow key selection", "focus ring and refresh focus", "input locked while saving", "375px mobile layouts", "14-day calendar navigation", "missing link error"] },
+  "limits": ["Hosted ChatGPT login not exercised by local browser tests", "Workspace returned sites_publish_disabled for requested public access; private deployment separately authorized"]
+}

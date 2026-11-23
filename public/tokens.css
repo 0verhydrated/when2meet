@@ -1,0 +1,18 @@
+:root {
+  --color-paper: #fcfdfc; --color-paper-2: #f3f6f3; --color-paper-3: #e8eee8;
+  --color-ink: #18261e; --color-ink-2: #384a3e; --color-muted: #627067;
+  --color-rule: #dce4de; --color-edge: #849488;
+  --color-accent: #287a46; --color-accent-hover: #1c6236; --color-accent-ink: #fcfdfc;
+  --color-focus: #1b6d3b; --color-selected: #d6edca; --color-selected-ink: #23592f;
+  --color-blocked: #e9eeeb; --color-blocked-ink: #54645b;
+  --color-error: #ad3232; --color-error-bg: #fff1ee; --color-clear: transparent;
+  --font-body: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-display: var(--font-body);
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
+  --space-control: 48px;
+  --text-xs: .75rem; --text-sm: .875rem; --text-md: 1rem; --text-lg: 1.125rem; --text-xl: 1.5rem;
+  --container: 1248px; --gutter: 40px; --gap-columns: 40px;
+  --radius-card: 20px; --radius-control: 10px; --radius-pill: 999px;
+  --dur-micro: 120ms; --dur-short: 220ms; --ease-out: cubic-bezier(.16,1,.3,1);
+  --z-sticky: 200; --z-modal: 400;
+}

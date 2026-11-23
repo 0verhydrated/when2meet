@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#287a46">
+  <meta name="description" content="매주 고정된 일정은 자동으로 제외하고, 링크 하나로 모두의 가능한 시간을 모으세요. When2Meet.">
+  <title>When2Meet | 우리 만날 시간을 찾아요</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+  <header class="site-header"><div class="container header-inner">
+    <a class="wordmark" href="/" aria-label="When2Meet 홈"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="4"/><path d="M7 3v4m10-4v4M3 11h18m-13 5 3 3 5-5"/></svg>When2Meet</a>
+    <nav class="nav-links" aria-label="주 메뉴"><a class="desktop-link" href="/#how">이용 방법</a><a class="desktop-link" href="/app?tab=fixed">내 고정 일정</a><span class="nav-divider" aria-hidden="true"></span><a href="/app" id="account-link">로그인</a><a class="button secondary" href="/app?signup=1" id="signup-link">회원가입</a></nav>
+  </div></header>
+  <main id="main" tabindex="-1">
+    <div id="home-view"><section class="container hero" aria-labelledby="hero-heading">
+      <div class="hero-copy"><h1 id="hero-heading">고정 일정은 빼고,<br>가능한 시간만 모아요.</h1><p>고정 일정은 한 번만 등록하고, 링크로 모두의 가능한 시간을 모으세요.</p>
+        <div class="hero-actions"><a class="button" href="/app?new=1">약속 만들기<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></a><a class="quiet-button" href="/app?tab=fixed">고정 일정 등록하기</a></div>
+        <div class="hero-note"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>반복되는 수업도, 매주 있는 회의도 한 번에.</div>
+      </div>
+      <div class="demo" aria-label="고정 일정 자동 제외 체험">
+        <div class="demo-top"><div class="demo-title">우리의 일주일</div><span>시간표 미리보기</span></div>
+        <div class="segmented" aria-label="시간표 표시 방식"><button type="button" aria-pressed="false" data-demo="before">고정 일정 등록 전</button><button type="button" aria-pressed="true" data-demo="after">자동 제외 후</button></div>
+        <div class="demo-grid" id="demo-grid"></div>
+        <div class="demo-legend"><span class="legend-key"><span class="swatch"></span>가능한 시간</span><span class="legend-key"><span class="swatch blocked"></span>고정 일정</span></div>
+        <div class="demo-result" aria-live="polite"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 11v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9m-6 7 3 3 9-10"/></svg><span id="demo-message">겹치는 시간은 빼고, 만날 수 있는 시간만 남겨요.</span></div>
+      </div>
+    </section>
+    <div class="container"><div class="intro-strip"><strong>시간표는 한 번, 약속은 언제든.</strong><span>고정 일정 자동 제외</span><span>링크로 참여</span><span>함께 가능한 시간 확인</span></div></div>
+    <section class="container how-section" id="how" aria-labelledby="how-heading"><div class="section-intro"><h2 id="how-heading">시간을 묻는 대화가<br>조금 더 짧아지도록.</h2><p>매번 시간표를 다시 보내지 않아도 돼요.<br>When2Meet이 비워 둔 시간에서 만나세요.</p></div>
+      <ol class="how-list"><li><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 5h4"/></svg><h3>매주 바쁜 시간 등록</h3><p>수업, 회의, 운동처럼 반복되는 일정을 요일별로 저장해요.</p><a href="/app?tab=fixed">내 고정 일정 등록</a></li><li><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m10 13 4-4m-6 6-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 3 1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0" transform="translate(1 1)"/></svg><h3>약속 링크 공유</h3><p>만날 날짜와 시간 범위를 정한 뒤, 참여 링크를 보내세요.</p><a href="/app?new=1">약속 링크 만들기</a></li><li><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m18 0v-2a4 4 0 0 0-3-3.9"/><circle cx="9" cy="7" r="4"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/></svg><h3>함께 비는 시간 찾기</h3><p>각자의 고정 일정을 제외한 참여 결과를 한눈에 비교해요.</p><a href="/app">내 약속 확인</a></li></ol>
+    </section>
+    <section class="faq-section"><div class="container faq-layout"><h2>시작하기 전에<br>궁금한 것들.</h2><div class="faq-list"><details><summary>고정 일정은 다른 사람에게 보이나요?</summary><p>고정 일정의 이름과 내용은 나에게만 보여요. 참여자에게는 가능한 시간의 집계와 참여 이름만 보여요.</p></details><details><summary>고정 일정을 바꾸면 참여 결과도 바뀌나요?</summary><p>네. 새로 등록한 고정 일정은 기존 약속 결과에서도 제외돼요. 고정 일정을 삭제한 시간은 약속에서 다시 선택하고 저장해 주세요.</p></details><details><summary>참여한 뒤 시간을 수정할 수 있나요?</summary><p>같은 계정으로 약속 링크를 열면 언제든 수정할 수 있어요. 다시 저장하면 이전 응답이 갱신돼요.</p></details><details><summary>어떤 시간대를 기준으로 하나요?</summary><p>모든 날짜와 시간은 한국 표준시(Asia/Seoul)를 기준으로 표시해요. 30분 단위로 선택할 수 있어요.</p></details></div></div></section>
+    </div>
+    <section class="container app-shell" id="app-view" hidden aria-labelledby="app-heading"><div id="app-content" aria-live="polite"><p role="status">일정을 불러오는 중…</p></div></section>
+  </main>
+  <footer class="site-footer"><div class="container footer-inner"><a class="wordmark" href="/">When2Meet</a><p>우리의 빈 시간이 만나는 곳.</p><span>한국 표준시 (UTC+9)</span></div></footer>
+  <noscript><p class="container">시간표 조작과 약속 생성에는 자바스크립트가 필요합니다.</p></noscript>
+</body>
+</html>
