@@ -26,4 +26,14 @@ Node.js 22.13 이상이 필요합니다. 별도의 실행 의존성 설치 없�
 
 ## 배포
 
+### GitHub Pages
+
+공개 주소: https://0verhydrated.github.io/when2meet/
+
+`main`에 소스를 올리면 `.github/workflows/pages.yml`이 테스트와 `npm run build:pages`를 실행하고 `pages-dist/`를 배포합니다. 별도의 패키지 설치나 배포용 비밀키는 필요하지 않습니다.
+
+GitHub Pages는 정적 호스팅이므로 첫 화면과 시간표 미리보기를 제공합니다. 로그인·약속 생성·참여 링크는 기존 ChatGPT Sites 서버로 이동하며, 해당 서버의 접근 제한은 그대로 적용됩니다. Pages에 사용자 정보나 일정 데이터를 저장하지 않습니다. Pages에서 전체 기능을 독립적으로 제공하려면 별도 공개 서버와 외부용 인증 연결이 필요합니다.
+
+### 기존 서버
+
 `.openai/hosting.json`의 `DB` D1 바인딩과 `drizzle/` 마이그레이션을 포함해 배포합니다. `npm run build`는 정적 파일을 포함한 `dist/server/index.js`를 생성합니다. 서버 실행 중 테이블을 생성하거나 변경하지 않습니다.
