@@ -16,17 +16,26 @@ export function effectiveSlots(slots, fixed) { return slots.filter(slot => !isBl
 export function summarize(meeting, responses) {
   const slots = meetingSlots(meeting);
   const counts = Object.fromEntries(slots.map(slot => [slot, 0]));
-  for (const response of responses) {
+  const availableBy = Object.fromEntries(slots.map(slot => [slot, []]));
+  for (const [index, response] of responses.entries()) {
     for (const slot of new Set(effectiveSlots(JSON.parse(response.slots_json), JSON.parse(response.fixed_json)))) {
-      if (Object.hasOwn(counts, slot)) counts[slot]++;
+      if (Object.hasOwn(counts, slot)) { counts[slot]++; availableBy[slot].push(index); }
     }
   }
   const candidates = [];
   if (responses.length) {
     for (const date of meetingDates(meeting)) {
-      for (let minute = meeting.start_hour * 60; minute + meeting.duration <= meeting.end_hour * 60; minute += 30) {
-        const count = Math.min(...Array.from({ length: meeting.duration / 30 }, (_, offset) => counts[`${date}|${minute + offset * 30}`]));
-        if (count > 0) candidates.push({ date, start: minute, end: minute + meeting.duration, count });
+      let range = null;
+      let previousMembers = '';
+      for (let minute = meeting.start_hour * 60; minute < meeting.end_hour * 60; minute += 30) {
+        const count = counts[`${date}|${minute}`];
+        const members = availableBy[`${date}|${minute}`].join(',');
+        if (range && members === previousMembers) range.end = minute + 30;
+        else {
+          range = count > 0 ? { date, start: minute, end: minute + 30, count } : null;
+          if (range) candidates.push(range);
+        }
+        previousMembers = members;
       }
     }
   }

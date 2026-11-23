@@ -11,10 +11,30 @@ test('recurring exclusions use Seoul calendar weekday and half-open intervals', 
   assert.equal(isBlocked('2026-11-24|570', fixed), false);
   assert.deepEqual(effectiveSlots(['2026-11-23|540', '2026-11-23|570', '2026-11-23|630'], fixed), ['2026-11-23|540', '2026-11-23|630']);
 });
-test('results apply changed fixed schedules and require consecutive availability', () => {
+test('results join continuous equal-count slots without enforcing legacy duration', () => {
   const responses = [{ name: '가', slots_json: JSON.stringify(['2026-11-23|540', '2026-11-23|570', '2026-11-23|600', '2026-11-23|630']), fixed_json: JSON.stringify([{ weekday: 0, start: 570, end: 600 }]) }, { name: '나', slots_json: JSON.stringify(['2026-11-23|540', '2026-11-23|570', '2026-11-23|600', '2026-11-23|630']), fixed_json: '[]' }];
   const summary = summarize(meeting, responses);
   assert.equal(summary.counts['2026-11-23|570'], 1);
-  assert.deepEqual(summary.candidates[0], { date: '2026-11-23', start: 600, end: 660, count: 2 });
-  assert.equal(summary.candidates.find(candidate => candidate.start === 540)?.count, 1);
+  assert.deepEqual(summary.candidates.find(candidate => candidate.start === 600), { date: '2026-11-23', start: 600, end: 660, count: 2 });
+  assert.equal(summary.candidates.find(candidate => candidate.start === 540)?.count, 2);
+  assert.deepEqual(summarize({ ...meeting, duration: 120 }, responses).candidates, summary.candidates);
+});
+test('continuous ranges retain 30-minute periods and split at gaps and midnight', () => {
+  const response = { name: '가', fixed_json: '[]', slots_json: JSON.stringify(['2026-11-23|540', '2026-11-23|600', '2026-11-23|630', '2026-11-24|540']) };
+  const summary = summarize({ ...meeting, end_date: '2026-11-24' }, [response]);
+  assert.deepEqual(summary.candidates, [
+    { date: '2026-11-23', start: 540, end: 570, count: 1 },
+    { date: '2026-11-23', start: 600, end: 660, count: 1 },
+    { date: '2026-11-24', start: 540, end: 570, count: 1 }
+  ]);
+});
+test('equal counts from different participants do not form one continuous range', () => {
+  const responses = [
+    { name: '가', fixed_json: '[]', slots_json: JSON.stringify(['2026-11-23|540']) },
+    { name: '나', fixed_json: '[]', slots_json: JSON.stringify(['2026-11-23|570']) }
+  ];
+  assert.deepEqual(summarize(meeting, responses).candidates, [
+    { date: '2026-11-23', start: 540, end: 570, count: 1 },
+    { date: '2026-11-23', start: 570, end: 600, count: 1 }
+  ]);
 });

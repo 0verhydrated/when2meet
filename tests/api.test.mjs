@@ -15,7 +15,7 @@ test('signup, persistence, link participation, authorization and stale-write pro
   assert.equal((await request('/profile', { method: 'POST', data: { name: 'bad' }, origin: 'https://evil.example' })).status, 403);
   const date = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const weekday = (new Date(date).getUTCDay() + 6) % 7;
-  const created = await request('/meetings', { method: 'POST', data: { title: '스터디', start_date: date, end_date: date, start_hour: 9, end_hour: 12, duration: 60 } });
+  const created = await request('/meetings', { method: 'POST', data: { title: '스터디', start_date: date, end_date: date, start_hour: 9, end_hour: 12 } });
   assert.equal(created.status, 201);
   const path = '/meetings/' + created.body.id;
   assert.match(created.body.path, /^\/m\/[a-f0-9]{32}$/);
@@ -28,9 +28,11 @@ test('signup, persistence, link participation, authorization and stale-write pro
   assert.equal((await request('/fixed', { method: 'PUT', data: fixed })).status, 409);
   assert.equal((await request('/me', { user: 'bob' })).body.fixed.length, 0);
   const results = (await request(path, { user: 'bob' })).body;
+  assert.equal(Object.hasOwn(results.meeting, 'duration'), false);
   assert.equal(results.counts[date + '|540'], 1);
   assert.equal(results.candidates[0].count, 2);
   assert.equal(results.candidates[0].start, 600);
+  assert.equal(results.candidates[0].end, 720);
   assert.equal(JSON.stringify(results).includes('개인 상담'), false);
   assert.equal((await request('/meetings/ffffffffffffffffffffffffffffffff')).status, 404);
   DB.sqlite.close();
