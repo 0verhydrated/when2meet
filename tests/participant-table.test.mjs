@@ -18,7 +18,7 @@ test('The chosen person sees all dates at once, with escaped names and correct m
   assert.equal((html.match(/class="person-available"/g) || []).length, 2);
   assert.equal((html.match(/scope="col"/g) || []).length, 4);
   assert.doesNotMatch(html, /불참/);
-  assert.match(html, /0.5시간/); assert.match(html, /0시간/);
+  assert.doesNotMatch(html, /<tfoot|전체 기간 가능한|한국 표준|UTC\+9|\d+(?:\.\d+)?시간/);
   assert.match(html, /scope="col"/); assert.match(html, /scope="row"/);
   const empty = participantTableMarkup(meeting, participantColumns(people)[1]);
   assert.equal((empty.match(/class="person-available"/g) || []).length, 0);

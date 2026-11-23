@@ -36,7 +36,7 @@ export function bindGridKeyboard(grid, columns) {
 }
 
 // Meeting availability and weekly commitments share pointer, touch and keyboard behavior.
-export function bindScheduleGrid(grid, scroll, { columns, read, write, blocked = () => false, locked = () => false, touch, preview, commit }) {
+export function bindScheduleGrid(grid, scroll, { columns, read, write, blocked = () => false, locked = () => false, touch, preview, commit, settled = () => {} }) {
   let gesture = null, frame = 0, suppress = false;
   const buttons = [...grid.querySelectorAll('[data-slot]')];
   const focus = button => focusGridSlot(grid, button);
@@ -67,6 +67,7 @@ export function bindScheduleGrid(grid, scroll, { columns, read, write, blocked =
     if (grid.hasPointerCapture(previous.pointerId)) grid.releasePointerCapture(previous.pointerId);
     if (cancelled) { write(previous.initial); preview(); }
     else if (read().size !== previous.initial.size || [...read()].some(slot => !previous.initial.has(slot))) commit();
+    settled();
     setTimeout(() => { suppress = false; }, 0);
   };
   for (const button of buttons) {
@@ -89,5 +90,5 @@ export function bindScheduleGrid(grid, scroll, { columns, read, write, blocked =
   grid.onpointerup = event => { if (gesture?.pointerId === event.pointerId) finish(false); };
   grid.onpointercancel = () => finish(true);
   grid.onlostpointercapture = () => { if (gesture) finish(true); };
-  return { finish };
+  return { finish, isPainting: () => Boolean(gesture) };
 }

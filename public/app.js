@@ -7,6 +7,7 @@ import { mountFixedGrid, weekOrder, fixedDayStart, fixedDayEnd } from './fixed-g
 import { bindScheduleGrid, timeAxisMarkup, toggleColumnSelection } from './schedule-grid.js';
 import { mountParticipantTable } from './participant-table.js';
 import { mountAvailabilityOverview } from './availability-overview.js';
+import { createResponseEditor, persistResponse } from './response-editor.js';
 const overviewState = { filter: 'all', slot: null };
 let fixedPainter;
 const days = ['월', '화', '수', '목', '금', '토', '일'];
@@ -26,8 +27,9 @@ let me;
 let dirty = false;
 let savedMeeting;
 let selected = new Set();
-let responseVersion = 0;
-let savingResponse = false;
+let responseEditor;
+let loadingResponse = false;
+let resultsRequest = 0;
 if (isApp) { document.querySelector('#home-view').hidden = true; document.querySelector('#app-view').hidden = false; }
 const api = requestApi;
 function renderPage(markup) { appContent.innerHTML = pageMarkup(markup); }
@@ -60,7 +62,7 @@ async function renderMeetings() {
   renderPage( appTop('내 약속', `${me.user.name}님, 다음에 만날 시간을 정해 볼까요?`, '<a class="button" href="/app?new=1">새 약속 만들기</a>') + appTabs('meetings') + (data.meetings.length ? `<ul class="meeting-list">${data.meetings.map(meeting => `<li><a href="/m/${meeting.id}"><div><h2>${escape(meeting.title)}</h2><p>${dateLabel(meeting.start_date)} ~ ${dateLabel(meeting.end_date)}</p></div><span>${meeting.response_count}명 참여</span></a></li>`).join('')}</ul>` : '<div class="empty"><h2>아직 만든 약속이 없어요</h2><p>날짜를 정하고 링크를 보내면, 함께 가능한 시간을 모을 수 있어요.</p><a class="button" href="/app?new=1">첫 약속 만들기</a></div>'));
 }
 function renderCreate() {
-  renderPage( '<a class="back-link" href="/app">내 약속으로 돌아가기</a>' + appTop('어떤 약속을 만들까요?', '만날 날짜와 시간 범위를 정하면 참여 링크가 생겨요.') + `<form id="create-form" class="form-panel"><div class="field"><label for="meeting-title">약속 이름</label><input id="meeting-title" name="title" placeholder="예: 다음 주 스터디" required maxlength="80" autofocus></div><div class="form-grid"><div class="field"><label for="start-date">시작 날짜</label><input id="start-date" type="date" name="start_date" min="${today}" value="${today}" required></div><div class="field"><label for="end-date">마지막 날짜</label><input id="end-date" type="date" name="end_date" min="${today}" max="${offsetDate(today, 13)}" value="${offsetDate(today, 6)}" required></div></div><p class="helper">최대 14일의 가능한 시간을 비교할 수 있어요.</p><div class="form-grid"><div class="field"><label for="start-hour">시작 시간</label><select name="start_hour" id="start-hour">${hoursOptions(9, 23)}</select></div><div class="field"><label for="end-hour">종료 시간</label><select name="end_hour" id="end-hour">${hoursOptions(21).replace('<option value="0" >00:00</option>', '')}</select></div></div><p class="helper">모든 시간은 한국 표준시(UTC+9) 기준이에요.</p><p id="form-status" class="inline-status" role="status"></p><div class="form-actions"><button type="submit" class="button">참여 링크 만들기</button><a class="quiet-button" href="/app">취소</a></div></form>`);
+  renderPage( '<a class="back-link" href="/app">내 약속으로 돌아가기</a>' + appTop('어떤 약속을 만들까요?', '만날 날짜와 시간 범위를 정하면 참여 링크가 생겨요.') + `<form id="create-form" class="form-panel"><div class="field"><label for="meeting-title">약속 이름</label><input id="meeting-title" name="title" placeholder="예: 다음 주 스터디" required maxlength="80" autofocus></div><div class="form-grid"><div class="field"><label for="start-date">시작 날짜</label><input id="start-date" type="date" name="start_date" min="${today}" value="${today}" required></div><div class="field"><label for="end-date">마지막 날짜</label><input id="end-date" type="date" name="end_date" min="${today}" max="${offsetDate(today, 13)}" value="${offsetDate(today, 6)}" required></div></div><p class="helper">최대 14일의 가능한 시간을 비교할 수 있어요.</p><div class="form-grid"><div class="field"><label for="start-hour">시작 시간</label><select name="start_hour" id="start-hour">${hoursOptions(9, 23)}</select></div><div class="field"><label for="end-hour">종료 시간</label><select name="end_hour" id="end-hour">${hoursOptions(21).replace('<option value="0" >00:00</option>', '')}</select></div></div><p id="form-status" class="inline-status" role="status"></p><div class="form-actions"><button type="submit" class="button">참여 링크 만들기</button><a class="quiet-button" href="/app">취소</a></div></form>`);
   document.querySelector('#start-date').onchange = event => {
     const end = document.querySelector('#end-date'); end.min = event.target.value; end.max = offsetDate(event.target.value, 13);
     if (end.value < end.min || end.value > end.max) end.value = offsetDate(event.target.value, 6);
@@ -112,24 +114,36 @@ function blockedBy(slot) { const [date, minute] = slot.split('|'); const weekday
 async function renderMeeting() {
   savedMeeting = await api('/meetings/' + meetingId);
   const meeting = savedMeeting.meeting;
-  responseVersion = savedMeeting.mine?.version || 0;
   selected = new Set((savedMeeting.mine?.slots || []).filter(slot => !blockedBy(slot)));
   const shareUrl = new URL(pageUrl('/m/' + meetingId), location.origin).href;
-  renderPage( '<a class="back-link" href="/app">내 약속으로 돌아가기</a>' + appTop(meeting.title, `${dateLabel(meeting.start_date)} ~ ${dateLabel(meeting.end_date)} / 한국 표준시`) + `<div class="share-panel"><h2>${params.has('created') ? '참여 링크가 만들어졌어요.' : '이 링크로 함께 시간을 모아요.'}</h2><div class="share-controls"><label class="sr-only" for="share-link">참여 링크</label><input id="share-link" readonly value="${escape(shareUrl)}"><button class="button" id="copy-link" type="button">링크 복사</button><button class="quiet-button" id="native-share" type="button" ${typeof navigator.share !== 'function' ? 'hidden' : ''}>공유하기</button></div><p class="helper" id="copy-status" role="status">링크를 받은 사람은 로그인 후 가능한 시간을 제출할 수 있어요.</p></div><div class="response-note" id="response-note" ${savedMeeting.mine ? '' : 'hidden'}>저장된 응답을 불러왔어요. 시간을 수정한 뒤 다시 저장할 수 있어요.</div><div class="vote-layout"><section aria-labelledby="vote-heading"><div class="vote-toolbar"><h2 id="vote-heading">가능한 시간을 선택해 주세요</h2><button class="quiet-button" type="button" id="select-all">고정 일정 제외 모두 선택</button><button class="quiet-button" type="button" id="clear-all">선택 해제</button></div><p class="vote-help" id="grid-help">시간을 누르거나 드래그해 선택하세요. 키보드는 방향키로 이동하고 Space로 선택해요. 빗금 친 고정 일정은 제외돼요.</p><div class="paint-options"><button class="button secondary" id="paint-toggle" type="button" aria-pressed="false">드래그로 칠하기</button><span class="helper">날짜 제목을 누르면 해당 날짜만 전체 선택하거나 해제할 수 있어요.</span><a class="quiet-button" href="#availability-overview">전체 현황 보기</a></div><div class="schedule-scroll" tabindex="0" role="region" aria-label="시간표 스크롤"><div class="schedule-grid" id="schedule-grid" aria-describedby="grid-help"></div></div><p class="privacy-note response-sharing-note">제출한 이름과 가능한 시간은 약속 링크를 가진 로그인 사용자에게 보여요. 고정 일정의 이름과 내용은 공유하지 않아요.</p><div class="vote-save"><span id="selection-count"></span><button class="button" id="save-response" type="button">가능한 시간 저장</button></div><p id="form-status" class="inline-status" role="status"></p><p class="privacy-note">고정 일정은 <a href="/app?tab=fixed">내 고정 일정</a>에서 관리할 수 있어요.</p></section><aside class="results-panel" id="results" aria-labelledby="results-heading"></aside></div><section id="participant-availability" aria-labelledby="participant-heading"></section>`);
+  renderPage( '<a class="back-link" href="/app">내 약속으로 돌아가기</a>' + appTop(meeting.title, `${dateLabel(meeting.start_date)} ~ ${dateLabel(meeting.end_date)}`) + `<div class="share-panel"><h2>${params.has('created') ? '참여 링크가 만들어졌어요.' : '이 링크로 함께 시간을 모아요.'}</h2><div class="share-controls"><label class="sr-only" for="share-link">참여 링크</label><input id="share-link" readonly value="${escape(shareUrl)}"><button class="button" id="copy-link" type="button">링크 복사</button><button class="quiet-button" id="native-share" type="button" ${typeof navigator.share !== 'function' ? 'hidden' : ''}>공유하기</button></div><p class="helper" id="copy-status" role="status">링크를 받은 사람은 로그인 후 가능한 시간을 제출할 수 있어요.</p></div><div class="response-note" id="response-note" ${savedMeeting.mine ? '' : 'hidden'}>저장된 응답을 불러왔어요. 변경하면 자동으로 저장돼요.</div><div class="vote-layout"><section aria-labelledby="vote-heading"><div class="vote-toolbar"><h2 id="vote-heading">가능한 시간을 선택해 주세요</h2><button class="quiet-button" type="button" id="select-all">고정 일정 제외 모두 선택</button><button class="quiet-button" type="button" id="clear-all">선택 해제</button></div><p class="vote-help" id="grid-help">시간을 누르거나 드래그해 선택하세요. 키보드는 방향키로 이동하고 Space로 선택해요. 빗금 친 고정 일정은 제외돼요.</p><div class="paint-options"><button class="button secondary" id="paint-toggle" type="button" aria-pressed="false">드래그로 칠하기</button><span class="helper">날짜 제목을 누르면 해당 날짜만 전체 선택하거나 해제할 수 있어요.</span><a class="quiet-button" href="#availability-overview">전체 현황 보기</a></div><div class="schedule-scroll" tabindex="0" role="region" aria-label="시간표 스크롤"><div class="schedule-grid" id="schedule-grid" aria-describedby="grid-help"></div></div><p class="privacy-note response-sharing-note">제출한 이름과 가능한 시간은 약속 링크를 가진 로그인 사용자에게 보여요. 고정 일정의 이름과 내용은 공유하지 않아요.</p><div class="response-actions"><button class="quiet-button" id="undo-response" type="button" aria-keyshortcuts="Control+Z Meta+Z" disabled>되돌리기</button><span class="helper">자동 저장돼요. Ctrl+Z 또는 ⌘Z로 이전 선택을 되돌릴 수 있어요.</span><button class="quiet-button" id="retry-response" type="button" hidden>다시 저장</button><button class="quiet-button" id="reload-response" type="button" hidden>저장된 응답 불러오기</button></div><p id="form-status" class="inline-status" role="status"></p><p class="privacy-note">고정 일정은 <a href="/app?tab=fixed">내 고정 일정</a>에서 관리할 수 있어요.</p></section><aside class="results-panel" id="results" aria-labelledby="results-heading"></aside></div><section id="participant-availability" aria-labelledby="participant-heading"></section>`);
   document.querySelector('#copy-link').onclick = async () => {
     try { await navigator.clipboard.writeText(shareUrl); document.querySelector('#copy-status').textContent = '링크를 복사했어요. 함께할 사람에게 보내주세요.'; }
     catch { const input = document.querySelector('#share-link'); input.focus(); input.select(); document.querySelector('#copy-status').textContent = '주소를 선택했어요. 복사 단축키로 복사해 주세요.'; }
   };
   document.querySelector('#native-share').onclick = async () => { try { await navigator.share({ title: meeting.title, url: shareUrl }); } catch (error) { if (error.name !== 'AbortError') document.querySelector('#copy-status').textContent = '공유를 열지 못했어요. 링크 복사를 이용해 주세요.'; } };
   const help = document.querySelector('#grid-help'); help.innerHTML = '<span class="mouse-help">여러 날짜와 시간을 가로세로 드래그해 칠하거나 지우세요. 방향키로 이동하고 Space로 선택할 수도 있어요.</span><span class="touch-help">좌우로 밀어 전체 날짜를 확인하세요. 드래그로 칠하기를 켜면 손가락으로 영역을 선택할 수 있어요.</span> 빗금 친 고정 일정은 제외돼요.';
-  document.querySelector('#select-all').onclick = () => { if (savingResponse) return; selected = new Set(meetingSlots(meeting).filter(slot => !blockedBy(slot))); changed(); drawGrid(); };
-  document.querySelector('#clear-all').onclick = () => { if (savingResponse) return; selected.clear(); changed(); drawGrid(); };
-  document.querySelector('#save-response').onclick = saveResponse;
+  document.querySelector('#select-all').onclick = () => { if (loadingResponse) return; selected = new Set(meetingSlots(meeting).filter(slot => !blockedBy(slot))); changed(); drawGrid(); };
+  document.querySelector('#clear-all').onclick = () => { if (loadingResponse) return; selected.clear(); changed(); drawGrid(); };
+  document.querySelector('#undo-response').onclick = undoResponse;
+  document.querySelector('#retry-response').onclick = () => { void responseEditor.retry(); };
+  document.querySelector('#reload-response').onclick = reloadResponse;
   document.querySelector('#paint-toggle').onclick = event => { touchPainting = !touchPainting; event.currentTarget.setAttribute('aria-pressed', String(touchPainting)); event.currentTarget.textContent = touchPainting ? '스크롤로 이동하기' : '드래그로 칠하기'; document.querySelector('.schedule-scroll').classList.toggle('painting', touchPainting); };
+  const allowed = new Set(meetingSlots(meeting));
+  responseEditor = createResponseEditor({
+    slots: selected, version: savedMeeting.mine?.version || 0, exists: Boolean(savedMeeting.mine),
+    normalize: slots => slots.filter(slot => allowed.has(slot) && !blockedBy(slot)),
+    save: (slots, version) => persistResponse(api, '/meetings/' + meetingId, slots, version),
+    onDraft: slots => { if (!schedulePainter?.isPainting()) { selected = new Set(slots); refreshSlotButtons(); } },
+    onState: renderResponseState,
+    onSaved: () => {
+      const note = document.querySelector('#response-note'); note.hidden = false; note.textContent = '변경한 가능한 시간이 자동으로 저장돼요.';
+      void refreshMeetingResults().catch(() => status('응답은 저장했지만 결과를 새로 불러오지 못했어요. 결과 새로고침을 눌러 주세요.', true, '#results-status'));
+    },
+  });
   drawGrid(); drawResults();
 }
-function changed() { dirty = true; status('아직 저장하지 않은 변경 사항이 있어요.'); updateCount(); }
-function updateCount() { document.querySelector('#selection-count').textContent = selected.size ? `${selected.size}칸 선택 / 총 ${selected.size / 2}시간` : '선택한 시간이 없어요. 불참도 저장할 수 있어요.'; }
+function changed() { responseEditor.change([...selected]); }
 function drawGrid(focusSlot) {
   const meeting = savedMeeting.meeting;
   const dates = meetingDates(meeting);
@@ -143,20 +157,29 @@ function drawGrid(focusSlot) {
     const slot = date + '|' + minute; const blocked = blockedBy(slot); const pressed = selected.has(slot); const count = savedMeeting.counts[slot] || 0;
     return `<button type="button" class="slot${blocked ? ' blocked' : ''}" data-slot="${slot}" aria-pressed="${pressed}" ${blocked ? 'aria-disabled="true"' : ''} tabindex="${slot === tabStop ? '0' : '-1'}" aria-label="${dateLabel(date)} ${timeLabel(minute)}부터 ${timeLabel(minute + 30)}까지, ${blocked ? escape(blocked.name) + ' 고정 일정' : pressed ? '선택됨' : '선택 안 됨'}, ${count}명 가능">${blocked ? '고정' : pressed ? '✓' : ''}</button>`;
   }).join('')}</div>`).join('') + timeAxisMarkup(minutes, true);
-  schedulePainter = bindScheduleGrid(grid, scroll, { columns: dates, read: () => selected, write: value => { selected = value; }, blocked: blockedBy, locked: () => savingResponse, touch: () => touchPainting, preview: () => { refreshSlotButtons(); updateCount(); }, commit: changed });
+  schedulePainter = bindScheduleGrid(grid, scroll, { columns: dates, read: () => selected, write: value => { selected = value; }, blocked: blockedBy, locked: () => loadingResponse, touch: () => touchPainting, preview: refreshSlotButtons, commit: changed, settled: () => { selected = new Set(responseEditor.state.slots); refreshSlotButtons(); } });
   scroll.scrollLeft = position.left; scroll.scrollTop = position.top;
   for (const button of grid.querySelectorAll('[data-select-date]')) button.onclick = () => {
-    if (savingResponse) return;
+    if (loadingResponse) return;
     schedulePainter?.finish(false);
     selected = toggleColumnSelection(selected, meetingSlots(meeting).filter(slot => slot.startsWith(button.dataset.selectDate + '|')), blockedBy);
     refreshSlotButtons(); changed();
   };
-  refreshDateButtons(); updateCount();
+  refreshDateButtons();
   lockSelection();
 }
 let touchPainting = false;
 let schedulePainter;
-function refreshSlotButtons() { document.querySelectorAll('#schedule-grid [data-slot]').forEach(button => { const pressed = selected.has(button.dataset.slot); button.setAttribute('aria-pressed', String(pressed)); if (!button.hasAttribute('aria-disabled')) button.textContent = pressed ? '✓' : ''; button.setAttribute('aria-label', button.getAttribute('aria-label').replace(/선택됨|선택 안 됨/, pressed ? '선택됨' : '선택 안 됨')); }); refreshDateButtons(); }
+function refreshSlotButtons() {
+  document.querySelectorAll('#schedule-grid [data-slot]').forEach(button => {
+    const slot = button.dataset.slot, [date, minute] = slot.split('|'), blocked = blockedBy(slot), pressed = !blocked && selected.has(slot);
+    button.setAttribute('aria-pressed', String(pressed)); button.classList.toggle('blocked', Boolean(blocked));
+    if (blocked) button.setAttribute('aria-disabled', 'true'); else button.removeAttribute('aria-disabled');
+    button.textContent = blocked ? '고정' : pressed ? '✓' : ''; button.disabled = loadingResponse;
+    button.setAttribute('aria-label', `${dateLabel(date)} ${timeLabel(Number(minute))}부터 ${timeLabel(Number(minute) + 30)}까지, ${blocked ? blocked.name + ' 고정 일정' : pressed ? '선택됨' : '선택 안 됨'}, ${savedMeeting.counts[slot] || 0}명 가능`);
+  });
+  refreshDateButtons();
+}
 function refreshDateButtons() {
   for (const button of document.querySelectorAll('[data-select-date]')) {
     const allowed = meetingSlots(savedMeeting.meeting).filter(slot => slot.startsWith(button.dataset.selectDate + '|') && !blockedBy(slot));
@@ -165,32 +188,59 @@ function refreshDateButtons() {
     button.setAttribute('aria-pressed', all ? 'true' : count ? 'mixed' : 'false');
     button.setAttribute('aria-label', `${dateLabel(button.dataset.selectDate)} 가능한 시간 ${all ? '선택 해제' : '모두 선택'}`);
     button.title = allowed.length ? '고정 일정을 제외한 해당 날짜의 시간을 선택하거나 해제해요.' : '고정 일정으로 선택 가능한 시간이 없어요.';
-    button.disabled = savingResponse || !allowed.length;
+    button.disabled = loadingResponse || !allowed.length;
   }
 }
-function lockSelection() { document.querySelectorAll('#schedule-grid [data-slot], [data-select-date], #paint-toggle, #select-all, #clear-all, #refresh-results').forEach(button => { button.disabled = savingResponse; }); refreshDateButtons(); }
+function lockSelection() { document.querySelectorAll('#schedule-grid [data-slot], [data-select-date], #paint-toggle, #select-all, #clear-all, #refresh-results').forEach(button => { button.disabled = loadingResponse; }); refreshDateButtons(); }
 function drawResults() {
+  const active = document.activeElement;
+  const restoreFocus = active?.closest('#results, #participant-availability') ? active.id ? '#' + active.id : active.dataset.filter ? '[data-filter="' + active.dataset.filter + '"]' : active.dataset.slot ? '#overview-grid [data-slot="' + active.dataset.slot + '"]' : null : null;
   const data = savedMeeting;
-  document.querySelector('#results').innerHTML = `<h2 id="results-heading">겹치는 시간을 확인해 보세요</h2><p>${data.total}명이 응답했어요.</p><section id="availability-overview" aria-labelledby="overview-heading"></section>${data.candidates.length ? `<ul class="candidate-list">${data.candidates.map(candidate => `<li><strong>${dateLabel(candidate.date)}</strong><span>${timeLabel(candidate.start)} ~ ${timeLabel(candidate.end)}</span><br><span class="${candidate.count === data.total ? 'all-available' : ''}">${candidate.count === data.total ? '모두 가능해요' : '일부만 가능해요'} (${candidate.count}/${data.total}명)</span></li>`).join('')}</ul>` : `<div class="empty"><p>${data.total ? '아직 함께 가능한 시간이 없어요. 시간 범위를 확인하거나 응답을 수정해 보세요.' : '첫 응답을 기다리고 있어요. 가능한 시간을 저장하면 결과가 나타나요.'}</p></div>`}<div class="participants"><h3>참여한 사람</h3><a class="quiet-button" href="#participant-availability">참여자별 시간표 보기</a><p>${data.participants.length ? data.participants.map(person => escape(person.name)).join(', ') : '아직 참여한 사람이 없어요.'}</p><button class="quiet-button" id="refresh-results" type="button">결과 새로고침</button><p class="helper" id="results-status" role="status"></p></div>`;
-  document.querySelector('#refresh-results').onclick = async event => { const button = event.currentTarget; button.disabled = true; try { const result = await api('/meetings/' + meetingId); savedMeeting = { ...result, mine: savedMeeting.mine }; drawResults(); drawGrid(); document.querySelector('#refresh-results').focus(); } catch (error) { document.querySelector('#results-status').textContent = error.message; button.disabled = false; } };
+  document.querySelector('#results').innerHTML = `<h2 id="results-heading">겹치는 시간을 확인해 보세요</h2><p>${data.total}명이 응답했어요.</p><section id="availability-overview" aria-labelledby="overview-heading"></section>${data.candidates.length ? `<ul class="candidate-list">${data.candidates.map(candidate => `<li><strong>${dateLabel(candidate.date)}</strong><span>${timeLabel(candidate.start)} ~ ${timeLabel(candidate.end)}</span><br><span class="${candidate.count === data.total ? 'all-available' : ''}">${candidate.count === data.total ? '모두 가능해요' : '일부만 가능해요'} (${candidate.count}/${data.total}명)</span></li>`).join('')}</ul>` : `<div class="empty"><p>${data.total ? '아직 함께 가능한 시간이 없어요. 시간 범위를 확인하거나 응답을 수정해 보세요.' : '첫 응답을 기다리고 있어요. 가능한 시간을 저장하면 결과가 나타나요.'}</p></div>`}<div class="participants"><h3>참여한 사람</h3><p>${data.participants.length ? data.participants.map(person => escape(person.name)).join(', ') : '아직 참여한 사람이 없어요.'}</p><button class="quiet-button" id="refresh-results" type="button">결과 새로고침</button><p class="helper" id="results-status" role="status"></p></div>`;
+  document.querySelector('#refresh-results').onclick = async event => { const button = event.currentTarget; button.disabled = true; try { await refreshMeetingResults(); } catch (error) { status(error.message, true, '#results-status'); button.disabled = false; } };
   mountAvailabilityOverview(document.querySelector('#availability-overview'), data, overviewState);
   mountParticipantTable(document.querySelector('#participant-availability'), data);
+  if (restoreFocus) document.querySelector(restoreFocus)?.focus({ preventScroll: true });
   lockSelection();
 }
-async function saveResponse() {
-  if (savingResponse) return;
-  schedulePainter?.finish(false); savingResponse = true; lockSelection();
-  const button = document.querySelector('#save-response'); button.disabled = true; button.textContent = '저장 중…';
-  try {
-    const result = await api('/meetings/' + meetingId + '/response', { method: 'PUT', body: JSON.stringify({ slots: [...selected], version: responseVersion }) });
-    responseVersion = result.version; selected = new Set(result.slots); dirty = false;
-    status('참여가 저장됐어요. 다른 사람의 응답과 함께 확인할 수 있어요.');
-    const note = document.querySelector('#response-note'); note.hidden = false; note.textContent = '참여가 저장됐어요. 이 링크에서 언제든 수정할 수 있어요.';
-    [savedMeeting, me] = await Promise.all([api('/meetings/' + meetingId), api('/me')]); drawResults(); drawGrid();
-  } catch (error) { status(error.message, true); }
-  finally { savingResponse = false; lockSelection(); button.disabled = false; button.textContent = '가능한 시간 저장'; }
+function renderResponseState(state) {
+  dirty = state.dirty;
+  const messages = { idle: '선택한 시간은 자동으로 저장돼요.', pending: '변경 사항을 자동으로 저장할게요…', saving: '자동 저장 중…', saved: '자동 저장했어요.', error: '자동 저장하지 못했어요. 연결을 확인한 뒤 다시 저장해 주세요.', conflict: '다른 창에서 응답이 바뀌었어요. 현재 선택은 유지했어요. 저장된 응답을 불러온 뒤 다시 선택해 주세요.' };
+  status(messages[state.phase], state.phase === 'error' || state.phase === 'conflict');
+  document.querySelector('#form-status').dataset.saveState = state.phase;
+  document.querySelector('#undo-response').disabled = loadingResponse || !state.canUndo;
+  document.querySelector('#retry-response').hidden = state.phase !== 'error';
+  document.querySelector('#reload-response').hidden = state.phase !== 'conflict';
 }
-window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
+function undoResponse() {
+  if (!responseEditor || loadingResponse) return;
+  schedulePainter?.finish(false); responseEditor.undo();
+}
+async function refreshMeetingResults() {
+  const request = ++resultsRequest;
+  const [meeting, profile] = await Promise.all([api('/meetings/' + meetingId), api('/me')]);
+  if (request !== resultsRequest) return;
+  savedMeeting = meeting; me = profile; responseEditor.revalidate(); drawResults(); refreshSlotButtons();
+}
+async function reloadResponse() {
+  if (loadingResponse) return;
+  schedulePainter?.finish(false); loadingResponse = true; resultsRequest++; lockSelection();
+  document.querySelector('#reload-response').disabled = true;
+  try {
+    const [meeting, profile] = await Promise.all([api('/meetings/' + meetingId), api('/me')]);
+    savedMeeting = meeting; me = profile;
+    responseEditor.reset(meeting.mine?.slots || [], meeting.mine?.version || 0, Boolean(meeting.mine));
+    drawResults(); drawGrid();
+  } catch (error) { status(error.message, true); }
+  finally { loadingResponse = false; document.querySelector('#reload-response').disabled = false; lockSelection(); renderResponseState(responseEditor.state); }
+}
+window.addEventListener('keydown', event => {
+  if (!responseEditor || loadingResponse || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'z' || event.target.closest?.('input, textarea, select, [contenteditable]')) return;
+  event.preventDefault(); undoResponse();
+});
+window.addEventListener('online', () => { if (responseEditor?.state.phase === 'error') void responseEditor.retry(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) void responseEditor?.flush(); });
+window.addEventListener('beforeunload', event => { if (dirty) { void responseEditor?.flush(); event.preventDefault(); event.returnValue = ''; } });
 async function boot() {
   try {
     me = await api('/me');

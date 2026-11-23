@@ -69,7 +69,7 @@ export function mountFixedGrid(container, { current, save, onSaved, onDirty }) {
       button.setAttribute('aria-label', `${days[weekday]}요일 ${timeLabel(minute)}부터 ${timeLabel(minute + 30)}까지, ${saved.length ? button.title + ' 저장됨' : active ? '선택됨' : '선택 안 됨'}`);
       button.disabled = busy;
     }
-    count.textContent = selected.size ? `${selected.size}칸 / ${selected.size / 2}시간을 칠했어요. 이름을 입력하고 저장해 주세요.` : '저장할 시간을 칠해 주세요.';
+    count.textContent = selected.size ? '칠한 블록의 이름을 입력하고 저장해 주세요.' : '저장할 시간을 칠해 주세요.';
     form.querySelector('button').disabled = busy || !selected.size;
   };
   const refresh = () => {
