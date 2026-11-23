@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fixedRanges, weekOrder, layoutFixedBlocks } from '../public/fixed-grid.js';
+import { fixedRanges, weekOrder, layoutFixedBlocks, fixedDayStart, fixedDayEnd, visibleFixedBlock } from '../public/fixed-grid.js';
 import { rectangleSlots } from '../public/schedule-grid.js';
 import { effectiveSlots } from '../worker/scheduling.js';
 
@@ -28,4 +28,13 @@ test('Saved blocks have stable distinct colors and overlapping schedules get sep
   assert.deepEqual(layoutFixedBlocks([...items].reverse()), result);
   const many = layoutFixedBlocks(Array.from({ length: 50 }, (_, i) => ({ ...items[0], id: String(i) })));
   assert.equal(new Set(many.map(item => item.hue)).size, 50);
+});
+test('The fixed timetable shows 09:00 through midnight without changing earlier saved commitments', () => {
+  assert.equal(fixedDayStart, 540); assert.equal(fixedDayEnd, 1440);
+  assert.equal((fixedDayEnd - fixedDayStart) / 30, 30);
+  const early = { id: 'early', name: '아침 일정', weekday: 0, start: 480, end: 600 };
+  assert.deepEqual(visibleFixedBlock(early), { ...early, start: 540 });
+  assert.equal(early.start, 480);
+  assert.equal(visibleFixedBlock({ ...early, end: 540 }), null);
+  assert.equal(visibleFixedBlock({ ...early, start: 1410, end: 1440 }).end, 1440);
 });

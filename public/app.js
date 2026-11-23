@@ -3,7 +3,7 @@ import { renderAuth } from './auth-ui.js';
 import { requestApi } from './backend.js';
 import { pageUrl, pageMarkup } from './navigation.js';
 import { mountEverytimeImport } from './everytime-import.js';
-import { mountFixedGrid, weekOrder } from './fixed-grid.js';
+import { mountFixedGrid, weekOrder, fixedDayStart, fixedDayEnd } from './fixed-grid.js';
 import { bindScheduleGrid } from './schedule-grid.js';
 let fixedPainter;
 const days = ['월', '화', '수', '목', '금', '토', '일'];
@@ -14,7 +14,7 @@ const dateLabel = date => `${Number(date.slice(5, 7))}/${Number(date.slice(8))} 
 const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
 const offsetDate = (date, offset) => new Date(Date.parse(date + 'T00:00:00Z') + offset * 86400000).toISOString().slice(0, 10);
 const hoursOptions = (selected, last = 24) => Array.from({ length: last + 1 }, (_, hour) => `<option value="${hour}" ${hour === selected ? 'selected' : ''}>${timeLabel(hour * 60)}</option>`).join('');
-const halfHourOptions = selected => Array.from({ length: 49 }, (_, index) => `<option value="${index * 30}" ${index * 30 === selected ? 'selected' : ''}>${timeLabel(index * 30)}</option>`).join('');
+const halfHourOptions = (selected, first, last) => Array.from({ length: (last - first) / 30 + 1 }, (_, index) => { const minute = first + index * 30; return `<option value="${minute}" ${minute === selected ? 'selected' : ''}>${timeLabel(minute)}</option>`; }).join('');
 const params = new URLSearchParams(location.search);
 const appContent = document.querySelector('#app-content');
 const meetingId = /^\/m\/([a-f0-9]{32})$/.exec(location.pathname)?.[1] || (/^[a-f0-9]{32}$/.test(params.get('meeting') || '') ? params.get('meeting') : null);
@@ -71,7 +71,7 @@ function renderCreate() {
   };
 }
 function fixedView() {
-  renderPage( appTop('내 고정 일정', '매주 반복되는 바쁜 시간을 저장하면, 모든 약속에서 자동으로 제외돼요.') + appTabs('fixed') + `<div id="everytime-import"></div><div id="fixed-painter"></div><h2 class="manual-fixed-heading">시간을 직접 입력하거나 저장된 일정을 관리해요</h2><div class="fixed-layout"><form id="fixed-form" class="fixed-form"><h2 class="sr-only">고정 일정 추가</h2><div class="field"><label for="fixed-name">일정 이름</label><input id="fixed-name" name="name" required maxlength="40" placeholder="예: 전공 수업, 팀 회의"></div><div class="field"><label for="fixed-day">반복 요일</label><select name="weekday" id="fixed-day">${weekOrder.map(index => `<option value="${index}">매주 ${days[index]}요일</option>`).join('')}</select></div><div class="form-grid"><div class="field"><label for="fixed-start">시작 시간</label><select name="start" id="fixed-start">${halfHourOptions(540)}</select></div><div class="field"><label for="fixed-end">종료 시간</label><select name="end" id="fixed-end">${halfHourOptions(600)}</select></div></div><p id="form-status" class="inline-status" role="status"></p><div class="form-actions"><button class="button" type="submit">고정 일정 추가</button></div><p class="privacy-note">일정 이름과 내용은 나에게만 보여요.</p></form><div><p class="fixed-summary" id="fixed-summary"></p><ul class="fixed-list" id="fixed-list"></ul><div class="empty" id="fixed-empty" hidden><h2>아직 등록한 고정 일정이 없어요</h2><p>반복되는 수업이나 회의 시간을 추가해 주세요.</p></div></div></div>`);
+  renderPage( appTop('내 고정 일정', '매주 반복되는 바쁜 시간을 저장하면, 모든 약속에서 자동으로 제외돼요.') + appTabs('fixed') + `<div id="everytime-import"></div><div id="fixed-painter"></div><h2 class="manual-fixed-heading">시간을 직접 입력하거나 저장된 일정을 관리해요</h2><div class="fixed-layout"><form id="fixed-form" class="fixed-form"><h2 class="sr-only">고정 일정 추가</h2><div class="field"><label for="fixed-name">일정 이름</label><input id="fixed-name" name="name" required maxlength="40" placeholder="예: 전공 수업, 팀 회의"></div><div class="field"><label for="fixed-day">반복 요일</label><select name="weekday" id="fixed-day">${weekOrder.map(index => `<option value="${index}">매주 ${days[index]}요일</option>`).join('')}</select></div><div class="form-grid"><div class="field"><label for="fixed-start">시작 시간</label><select name="start" id="fixed-start">${halfHourOptions(540, fixedDayStart, fixedDayEnd - 30)}</select></div><div class="field"><label for="fixed-end">종료 시간</label><select name="end" id="fixed-end">${halfHourOptions(600, fixedDayStart + 30, fixedDayEnd)}</select></div></div><p id="form-status" class="inline-status" role="status"></p><div class="form-actions"><button class="button" type="submit">고정 일정 추가</button></div><p class="privacy-note">일정 이름과 내용은 나에게만 보여요.</p></form><div><p class="fixed-summary" id="fixed-summary"></p><ul class="fixed-list" id="fixed-list"></ul><div class="empty" id="fixed-empty" hidden><h2>아직 등록한 고정 일정이 없어요</h2><p>반복되는 수업이나 회의 시간을 추가해 주세요.</p></div></div></div>`);
   fixedPainter = mountFixedGrid(document.querySelector('#fixed-painter'), { current: () => me.fixed, save: saveFixed, onSaved: drawFixed, onDirty: value => { dirty = value; } });
   mountEverytimeImport(document.querySelector('#everytime-import'), {
     request: url => api('/imports/everytime', { method: 'POST', body: JSON.stringify({ url }) }),
