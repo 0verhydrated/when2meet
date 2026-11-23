@@ -232,6 +232,8 @@ input[aria-invalid="true"] { border-color: var(--color-error); }
 #participant-availability { margin-top: 40px; scroll-margin-top: 24px; }
 #participant-availability h2 { font-size: var(--text-xl); margin-bottom: 12px; }
 .participant-controls { max-width: 260px; margin-block: 20px 16px; }
+.participant-person-summary { margin-bottom: 12px; font-size: .875rem; }
+.participant-empty { margin-bottom: 12px; }
 .participant-table-scroll { max-height: 560px; overflow: auto; border: 1px solid var(--color-rule); overscroll-behavior: contain; }
 .participant-table { width: 100%; min-width: max-content; border-collapse: separate; border-spacing: 0; font-size: .875rem; text-align: center; }
 .participant-table caption { text-align: left; padding: 12px; background: var(--color-paper); color: var(--color-muted); }
