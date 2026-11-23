@@ -188,3 +188,30 @@ input[aria-invalid="true"] { border-color: var(--color-error); }
 @media (max-width: 45rem) { .section-intro { display: block; } .section-intro p { margin-top: var(--space-lg); } .how-section, .faq-section { padding-block: var(--space-2xl); } .how-list, .faq-layout, .fixed-layout { grid-template-columns: minmax(0,1fr); gap: var(--space-xl); } .how-list { margin-top: var(--space-xl); } .how-list p { max-width: none; } .footer-inner { gap: var(--space-sm); } .footer-inner span { margin-left: 0; width: 100%; } .app-shell { padding-top: var(--space-lg); } .app-top { flex-direction: column; gap: var(--space-md); } .app-top h1 { font-size: 1.75rem; } .form-grid { gap: var(--space-sm); } .form-actions .button { flex: 1; } .fixed-layout { gap: var(--space-xl); } .share-panel { padding: var(--space-md); } .share-controls { flex-wrap: wrap; } .share-controls input { flex-basis: 100%; } .slot { font-size: var(--text-sm); } .candidate-list { grid-template-columns: minmax(0,1fr); gap: 0; } .vote-save .button { width: 100%; } .auth-panel { margin-block: var(--space-lg); } }
 .demo-cell, .demo-time, .demo-legend { font-size: .8125rem; }
 @media (max-width: 45rem) { .hero { padding-block: var(--space-lg); gap: var(--space-lg); } .hero h1 { font-size: 2.125rem; } .hero-copy p { margin-top: var(--space-md); } .hero-note { display: none; } .demo-top { margin-bottom: var(--space-xs); } .demo-result { margin-top: var(--space-sm); padding-top: var(--space-sm); } .demo-row-4, .demo-row-5 { display: none; } .demo-cell { min-height: 34px; } .demo-legend { margin-top: var(--space-sm); } }
+/* Shared timetable imports stay separate from manual additions. */
+.everytime-panel { border: 1px solid var(--line, #dce3dc); border-radius: 16px; margin-bottom: 28px; background: #f5f8f4; }
+.everytime-panel summary { cursor: pointer; padding: 20px; font-weight: 700; font-size: 1rem; }
+.everytime-content { padding: 0 20px 20px; }
+.everytime-content > p { margin: 0 0 14px; }
+.everytime-content form { display: flex; align-items: flex-end; gap: 12px; margin-top: 20px; }
+.everytime-content form .field { flex: 1; margin: 0; min-width: 0; }
+.everytime-content form button { flex-shrink: 0; }
+.everytime-content .privacy-note { margin-top: 12px; }
+.everytime-content h3 { font-size: 1.1rem; margin: 20px 0 12px; }
+.import-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.import-list { list-style: none; margin: 12px 0 20px; padding: 0; max-height: 360px; overflow-y: auto; border-block: 1px solid #dce3dc; }
+.import-list li + li { border-top: 1px solid #dce3dc; }
+.import-list label { display: flex; align-items: center; gap: 12px; padding: 14px 4px; cursor: pointer; }
+.import-list input { width: 20px; height: 20px; flex-shrink: 0; accent-color: #44754f; }
+.import-list label > span { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.import-list label > span > span { font-size: .875rem; color: #566459; }
+@media (max-width: 640px) { .everytime-content form { display: grid; } .everytime-content form button, #everytime-save { width: 100%; } }
+.fixed-painter { margin-block: 28px 40px; }
+.fixed-schedule { max-height: 560px; }
+.fixed-schedule .schedule-grid { grid-auto-columns: minmax(92px, 1fr); }
+.fixed-schedule .saved-fixed { background: #dde9df; color: #284c31; padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+.block-form { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-top: 20px; }
+.block-form .field { flex: 1; min-width: 220px; margin: 0; }
+.block-form .helper { flex-basis: 100%; order: 1; }
+.manual-fixed-heading { font-size: var(--text-xl); margin-bottom: 20px; }
+@media (max-width: 640px) { .block-form { display: grid; } .block-form .field { min-width: 0; } .block-form .helper { order: 0; } .block-form button { white-space: normal; } }

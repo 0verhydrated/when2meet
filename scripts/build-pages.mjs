@@ -34,7 +34,7 @@ html = html.replace('<script type="module"', '<link rel="canonical" href="https:
 await writeFile(new URL('index.html', output), html);
 const css = (await readFile(new URL('public/styles.css', root), 'utf8')).replaceAll('url("/tokens.css")', 'url("./tokens.css")');
 await writeFile(new URL('styles.css', output), css);
-for (const name of ['tokens.css', 'demo.js', 'pages-auth.js', 'auth-ui.js', 'navigation.js', 'app.js', 'backend.js', 'favicon.svg']) await copyFile(new URL('public/' + name, root), new URL(name, output));
+for (const name of ['tokens.css', 'demo.js', 'pages-auth.js', 'auth-ui.js', 'navigation.js', 'app.js', 'backend.js', 'everytime-import.js', 'fixed-grid.js', 'schedule-grid.js', 'favicon.svg']) await copyFile(new URL('public/' + name, root), new URL(name, output));
 if (supabaseEnabled) await build({ entryPoints: [fileURLToPath(new URL('public/supabase-backend.js', root))], outfile: fileURLToPath(new URL('backend.js', output)), bundle: true, minify: true, format: 'esm', platform: 'browser', target: 'es2022', define: { __SUPABASE_URL__: JSON.stringify(supabaseUrl), __SUPABASE_KEY__: JSON.stringify(supabaseKey) } });
 await writeFile(new URL('.nojekyll', output), '');
 console.log('Built public GitHub Pages site at pages-dist/');

@@ -1,4 +1,5 @@
 import { meetingSlots, effectiveSlots, summarize } from './scheduling.js';
+import { fetchEverytime, EverytimeError } from './everytime.js';
 
 const STATIC_ASSETS = {};
 class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
@@ -55,6 +56,11 @@ export async function handle(request, env, assets = STATIC_ASSETS) {
       return json({ user: saved });
     }
     check(user, '이름을 등록하고 회원가입을 완료해 주세요.', 403);
+    if (url.pathname === '/api/imports/everytime' && request.method === 'POST') {
+      const value = await body(request);
+      try { return json(await fetchEverytime(value.url)); }
+      catch (error) { if (error instanceof EverytimeError) throw new HttpError(400, error.message); throw error; }
+    }
     if (url.pathname === '/api/fixed' && request.method === 'PUT') {
       const value = await body(request);
       check(Number.isInteger(value.version) && value.version >= 0, '저장 버전을 확인해 주세요.');

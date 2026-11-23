@@ -24,6 +24,15 @@ export async function requestApi(path, options = {}) {
     if (path === '/me') return { authenticated: false, auth_mode: 'password', user: null, fixed: [], fixed_version: 0 };
     throw new Error('로그인 후 이용해 주세요.');
   }
+  if (path === '/imports/everytime') {
+    const { data: session } = await client.auth.getSession();
+    const response = await fetch(__SUPABASE_URL__ + '/functions/v1/import-everytime', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', apikey: __SUPABASE_KEY__, Authorization: 'Bearer ' + session.session.access_token }, body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || data.message || '시간표를 가져오지 못했어요. 다시 시도해 주세요.');
+    return data;
+  }
   const { data, error } = await client.rpc('when2meet_api', { p_path: path, p_method: options.method || 'GET', p_payload: payload });
   if (error) throw new Error(error.code === 'P0001' || error.code === '22023' ? error.message : '요청을 처리하지 못했어요. 다시 시도해 주세요.');
   if (path === '/me') return { ...data, user: { ...data.user, email: identity.user.email } };

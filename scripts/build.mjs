@@ -1,13 +1,15 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { build } from 'esbuild';
+import { fileURLToPath } from 'node:url';
 const root = new URL('../', import.meta.url);
 const types = { html: 'text/html; charset=utf-8', css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', svg: 'image/svg+xml' };
 const assets = {};
-for (const name of ['index.html', 'styles.css', 'tokens.css', 'app.js', 'demo.js', 'auth-ui.js', 'backend.js', 'navigation.js', 'favicon.svg']) assets['/' + name] = { body: await readFile(new URL('public/' + name, root), 'utf8'), type: types[name.split('.').pop()] };
+for (const name of ['index.html', 'styles.css', 'tokens.css', 'app.js', 'demo.js', 'auth-ui.js', 'backend.js', 'everytime-import.js', 'fixed-grid.js', 'schedule-grid.js', 'navigation.js', 'favicon.svg']) assets['/' + name] = { body: await readFile(new URL('public/' + name, root), 'utf8'), type: types[name.split('.').pop()] };
 let worker = await readFile(new URL('worker/index.js', root), 'utf8');
 worker = worker.replace("import { meetingSlots, effectiveSlots, summarize } from './scheduling.js';", await readFile(new URL('worker/scheduling.js', root), 'utf8'));
 worker = worker.replace('const STATIC_ASSETS = {};', () => 'const STATIC_ASSETS = ' + JSON.stringify(assets) + ';');
 await mkdir(new URL('dist/server/', root), { recursive: true });
 await mkdir(new URL('dist/.openai/', root), { recursive: true });
-await writeFile(new URL('dist/server/index.js', root), worker);
+await build({ stdin: { contents: worker, resolveDir: fileURLToPath(new URL('worker/', root)), sourcefile: 'index.js' }, bundle: true, platform: 'browser', format: 'esm', target: 'es2022', outfile: fileURLToPath(new URL('dist/server/index.js', root)) });
 await writeFile(new URL('dist/.openai/hosting.json', root), await readFile(new URL('.openai/hosting.json', root)));
 console.log('Built When2Meet Worker with embedded assets.');

@@ -2,6 +2,10 @@ import './demo.js';
 import { renderAuth } from './auth-ui.js';
 import { requestApi } from './backend.js';
 import { pageUrl, pageMarkup } from './navigation.js';
+import { mountEverytimeImport } from './everytime-import.js';
+import { mountFixedGrid, weekOrder } from './fixed-grid.js';
+import { bindScheduleGrid } from './schedule-grid.js';
+let fixedPainter;
 const days = ['월', '화', '수', '목', '금', '토', '일'];
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -67,7 +71,12 @@ function renderCreate() {
   };
 }
 function fixedView() {
-  renderPage( appTop('내 고정 일정', '매주 반복되는 바쁜 시간을 저장하면, 모든 약속에서 자동으로 제외돼요.') + appTabs('fixed') + `<div class="fixed-layout"><form id="fixed-form" class="fixed-form"><h2 class="sr-only">고정 일정 추가</h2><div class="field"><label for="fixed-name">일정 이름</label><input id="fixed-name" name="name" required maxlength="40" placeholder="예: 전공 수업, 팀 회의"></div><div class="field"><label for="fixed-day">반복 요일</label><select name="weekday" id="fixed-day">${days.map((day, index) => `<option value="${index}">매주 ${day}요일</option>`).join('')}</select></div><div class="form-grid"><div class="field"><label for="fixed-start">시작 시간</label><select name="start" id="fixed-start">${halfHourOptions(540)}</select></div><div class="field"><label for="fixed-end">종료 시간</label><select name="end" id="fixed-end">${halfHourOptions(600)}</select></div></div><p id="form-status" class="inline-status" role="status"></p><div class="form-actions"><button class="button" type="submit">고정 일정 추가</button></div><p class="privacy-note">일정 이름과 내용은 나에게만 보여요.</p></form><div><p class="fixed-summary" id="fixed-summary"></p><ul class="fixed-list" id="fixed-list"></ul><div class="empty" id="fixed-empty" hidden><h2>아직 등록한 고정 일정이 없어요</h2><p>반복되는 수업이나 회의 시간을 추가해 주세요.</p></div></div></div>`);
+  renderPage( appTop('내 고정 일정', '매주 반복되는 바쁜 시간을 저장하면, 모든 약속에서 자동으로 제외돼요.') + appTabs('fixed') + `<div id="everytime-import"></div><div id="fixed-painter"></div><h2 class="manual-fixed-heading">시간을 직접 입력하거나 저장된 일정을 관리해요</h2><div class="fixed-layout"><form id="fixed-form" class="fixed-form"><h2 class="sr-only">고정 일정 추가</h2><div class="field"><label for="fixed-name">일정 이름</label><input id="fixed-name" name="name" required maxlength="40" placeholder="예: 전공 수업, 팀 회의"></div><div class="field"><label for="fixed-day">반복 요일</label><select name="weekday" id="fixed-day">${weekOrder.map(index => `<option value="${index}">매주 ${days[index]}요일</option>`).join('')}</select></div><div class="form-grid"><div class="field"><label for="fixed-start">시작 시간</label><select name="start" id="fixed-start">${halfHourOptions(540)}</select></div><div class="field"><label for="fixed-end">종료 시간</label><select name="end" id="fixed-end">${halfHourOptions(600)}</select></div></div><p id="form-status" class="inline-status" role="status"></p><div class="form-actions"><button class="button" type="submit">고정 일정 추가</button></div><p class="privacy-note">일정 이름과 내용은 나에게만 보여요.</p></form><div><p class="fixed-summary" id="fixed-summary"></p><ul class="fixed-list" id="fixed-list"></ul><div class="empty" id="fixed-empty" hidden><h2>아직 등록한 고정 일정이 없어요</h2><p>반복되는 수업이나 회의 시간을 추가해 주세요.</p></div></div></div>`);
+  fixedPainter = mountFixedGrid(document.querySelector('#fixed-painter'), { current: () => me.fixed, save: saveFixed, onSaved: drawFixed, onDirty: value => { dirty = value; } });
+  mountEverytimeImport(document.querySelector('#everytime-import'), {
+    request: url => api('/imports/everytime', { method: 'POST', body: JSON.stringify({ url }) }),
+    current: () => me.fixed, save: saveFixed, onSaved: drawFixed,
+  });
   drawFixed();
   document.querySelector('#fixed-form').onsubmit = async event => {
     event.preventDefault(); const values = Object.fromEntries(new FormData(event.target));
@@ -81,7 +90,8 @@ function fixedView() {
 }
 async function saveFixed(items) { const data = await api('/fixed', { method: 'PUT', body: JSON.stringify({ items, version: me.fixed_version }) }); me.fixed = data.fixed; me.fixed_version = data.fixed_version; }
 function drawFixed() {
-  const items = [...me.fixed].sort((first, second) => first.weekday - second.weekday || first.start - second.start);
+  fixedPainter?.refresh();
+  const items = [...me.fixed].sort((first, second) => weekOrder.indexOf(first.weekday) - weekOrder.indexOf(second.weekday) || first.start - second.start);
   document.querySelector('#fixed-summary').textContent = `매주 반복되는 일정이 ${items.length}개 있어요.`;
   document.querySelector('#fixed-empty').hidden = Boolean(items.length);
   document.querySelector('#fixed-list').innerHTML = items.map(item => `<li><div><strong>${escape(item.name)}</strong><span>매주 ${days[item.weekday]}요일 / ${timeLabel(item.start)} ~ ${timeLabel(item.end)}</span></div><button class="quiet-button" type="button" data-delete="${escape(item.id)}" aria-label="${escape(item.name)} 삭제">삭제</button></li>`).join('');
@@ -102,7 +112,7 @@ async function renderMeeting() {
   responseVersion = savedMeeting.mine?.version || 0;
   selected = new Set((savedMeeting.mine?.slots || []).filter(slot => !blockedBy(slot)));
   const shareUrl = new URL(pageUrl('/m/' + meetingId), location.origin).href;
-  renderPage( '<a class="back-link" href="/app">내 약속으로 돌아가기</a>' + appTop(meeting.title, `${dateLabel(meeting.start_date)} ~ ${dateLabel(meeting.end_date)} / 한국 표준시`) + `<div class="share-panel"><h2>${params.has('created') ? '참여 링크가 만들어졌어요.' : '이 링크로 함께 시간을 모아요.'}</h2><div class="share-controls"><label class="sr-only" for="share-link">참여 링크</label><input id="share-link" readonly value="${escape(shareUrl)}"><button class="button" id="copy-link" type="button">링크 복사</button><button class="quiet-button" id="native-share" type="button" ${typeof navigator.share !== 'function' ? 'hidden' : ''}>공유하기</button></div><p class="helper" id="copy-status" role="status">링크를 받은 사람은 로그인 후 가능한 시간을 제출할 수 있어요.</p></div><div class="response-note" id="response-note" ${savedMeeting.mine ? '' : 'hidden'}>저장된 응답을 불러왔어요. 시간을 수정한 뒤 다시 저장할 수 있어요.</div><div class="vote-layout"><section aria-labelledby="vote-heading"><div class="vote-toolbar"><h2 id="vote-heading">가능한 시간을 선택해 주세요</h2><button class="quiet-button" type="button" id="select-all">가능 시간 모두 선택</button><button class="quiet-button" type="button" id="clear-all">선택 해제</button></div><p class="vote-help" id="grid-help">시간을 누르거나 드래그해 선택하세요. 키보드는 방향키로 이동하고 Space로 선택해요. 빗금 친 고정 일정은 제외돼요.</p><div class="paint-options"><button class="button secondary" id="paint-toggle" type="button" aria-pressed="false">드래그로 칠하기</button><span class="helper">전체 기간을 한눈에 보고 영역을 칠해 보세요.</span></div><div class="schedule-scroll" tabindex="0" role="region" aria-label="시간표 스크롤"><div class="schedule-grid" id="schedule-grid" aria-describedby="grid-help"></div></div><div class="vote-save"><span id="selection-count"></span><button class="button" id="save-response" type="button">가능한 시간 저장</button></div><p id="form-status" class="inline-status" role="status"></p><p class="privacy-note">고정 일정은 <a href="/app?tab=fixed">내 고정 일정</a>에서 관리할 수 있어요.</p></section><aside class="results-panel" id="results" aria-labelledby="results-heading"></aside></div>`);
+  renderPage( '<a class="back-link" href="/app">내 약속으로 돌아가기</a>' + appTop(meeting.title, `${dateLabel(meeting.start_date)} ~ ${dateLabel(meeting.end_date)} / 한국 표준시`) + `<div class="share-panel"><h2>${params.has('created') ? '참여 링크가 만들어졌어요.' : '이 링크로 함께 시간을 모아요.'}</h2><div class="share-controls"><label class="sr-only" for="share-link">참여 링크</label><input id="share-link" readonly value="${escape(shareUrl)}"><button class="button" id="copy-link" type="button">링크 복사</button><button class="quiet-button" id="native-share" type="button" ${typeof navigator.share !== 'function' ? 'hidden' : ''}>공유하기</button></div><p class="helper" id="copy-status" role="status">링크를 받은 사람은 로그인 후 가능한 시간을 제출할 수 있어요.</p></div><div class="response-note" id="response-note" ${savedMeeting.mine ? '' : 'hidden'}>저장된 응답을 불러왔어요. 시간을 수정한 뒤 다시 저장할 수 있어요.</div><div class="vote-layout"><section aria-labelledby="vote-heading"><div class="vote-toolbar"><h2 id="vote-heading">가능한 시간을 선택해 주세요</h2><button class="quiet-button" type="button" id="select-all">고정 일정 제외 모두 선택</button><button class="quiet-button" type="button" id="clear-all">선택 해제</button></div><p class="vote-help" id="grid-help">시간을 누르거나 드래그해 선택하세요. 키보드는 방향키로 이동하고 Space로 선택해요. 빗금 친 고정 일정은 제외돼요.</p><div class="paint-options"><button class="button secondary" id="paint-toggle" type="button" aria-pressed="false">드래그로 칠하기</button><span class="helper">전체 기간을 한눈에 보고 영역을 칠해 보세요.</span></div><div class="schedule-scroll" tabindex="0" role="region" aria-label="시간표 스크롤"><div class="schedule-grid" id="schedule-grid" aria-describedby="grid-help"></div></div><div class="vote-save"><span id="selection-count"></span><button class="button" id="save-response" type="button">가능한 시간 저장</button></div><p id="form-status" class="inline-status" role="status"></p><p class="privacy-note">고정 일정은 <a href="/app?tab=fixed">내 고정 일정</a>에서 관리할 수 있어요.</p></section><aside class="results-panel" id="results" aria-labelledby="results-heading"></aside></div>`);
   document.querySelector('#copy-link').onclick = async () => {
     try { await navigator.clipboard.writeText(shareUrl); document.querySelector('#copy-status').textContent = '링크를 복사했어요. 함께할 사람에게 보내주세요.'; }
     catch { const input = document.querySelector('#share-link'); input.focus(); input.select(); document.querySelector('#copy-status').textContent = '주소를 선택했어요. 복사 단축키로 복사해 주세요.'; }
@@ -129,84 +139,14 @@ function drawGrid(focusSlot) {
     const slot = date + '|' + minute; const blocked = blockedBy(slot); const pressed = selected.has(slot); const count = savedMeeting.counts[slot] || 0;
     return `<button type="button" class="slot${blocked ? ' blocked' : ''}" data-slot="${slot}" aria-pressed="${pressed}" ${blocked ? 'aria-disabled="true"' : ''} tabindex="${slot === tabStop ? '0' : '-1'}" aria-label="${dateLabel(date)} ${timeLabel(minute)}부터 ${timeLabel(minute + 30)}까지, ${blocked ? escape(blocked.name) + ' 고정 일정' : pressed ? '선택됨' : '선택 안 됨'}, ${count}명 가능">${blocked ? '고정' : pressed ? '✓' : ''}</button>`;
   }).join('')}</div>`).join('');
-  for (const button of grid.querySelectorAll('[data-slot]')) {
-    button.onclick = event => { if (!suppressClick || event.detail === 0) toggleSlot(button); };
-    button.onkeydown = event => {
-      const [date, minute] = button.dataset.slot.split('|'); let dateIndex = dates.indexOf(date); let row = minutes.indexOf(Number(minute));
-      if (event.key === 'ArrowLeft') dateIndex--; else if (event.key === 'ArrowRight') dateIndex++; else if (event.key === 'ArrowUp') row--; else if (event.key === 'ArrowDown') row++; else if (event.key === 'Home') row = 0; else if (event.key === 'End') row = minutes.length - 1; else return;
-      event.preventDefault(); dateIndex = Math.max(0, Math.min(dates.length - 1, dateIndex)); row = Math.max(0, Math.min(minutes.length - 1, row));
-      const target = grid.querySelector(`[data-slot="${dates[dateIndex]}|${minutes[row]}"]`);
-      grid.querySelector('[tabindex="0"]')?.setAttribute('tabindex', '-1');
-      target.tabIndex = 0; target.focus({ preventScroll: true }); target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    };
-  }
-  grid.onpointerdown = event => {
-    const button = event.target.closest('[data-slot]');
-    if (!button || savingResponse || event.button !== 0 || button.hasAttribute('aria-disabled') || (event.pointerType === 'touch' && !touchPainting)) return;
-    event.preventDefault();
-    paintGesture = { pointerId: event.pointerId, origin: button.dataset.slot, end: button.dataset.slot, value: !selected.has(button.dataset.slot), initial: new Set(selected), x: event.clientX, y: event.clientY };
-    suppressClick = true;
-    grid.setPointerCapture(event.pointerId);
-    grid.querySelector('[tabindex="0"]')?.setAttribute('tabindex', '-1'); button.tabIndex = 0; button.focus({ preventScroll: true });
-    paintRectangle();
-    paintFrame = requestAnimationFrame(scrollWhilePainting);
-  };
-  grid.onpointermove = event => { if (!paintGesture || paintGesture.pointerId !== event.pointerId) return; paintGesture.x = event.clientX; paintGesture.y = event.clientY; paintAtPointer(); };
-  grid.onpointerup = event => { if (paintGesture?.pointerId === event.pointerId) finishPaint(false); };
-  grid.onpointercancel = () => finishPaint(true);
-  grid.onlostpointercapture = () => { if (paintGesture) finishPaint(true); };
+  schedulePainter = bindScheduleGrid(grid, scroll, { columns: dates, read: () => selected, write: value => { selected = value; }, blocked: blockedBy, locked: () => savingResponse, touch: () => touchPainting, preview: () => { refreshSlotButtons(); updateCount(); }, commit: changed });
   scroll.scrollLeft = position.left; scroll.scrollTop = position.top;
   updateCount();
   lockSelection();
 }
 let touchPainting = false;
-let paintGesture = null;
-let paintFrame = 0;
-let suppressClick = false;
-function paintRectangle() {
-  const dates = meetingDates(savedMeeting.meeting);
-  const [startDate, startMinute] = paintGesture.origin.split('|');
-  const [endDate, endMinute] = paintGesture.end.split('|');
-  const first = Math.min(dates.indexOf(startDate), dates.indexOf(endDate));
-  const last = Math.max(dates.indexOf(startDate), dates.indexOf(endDate));
-  selected = new Set(paintGesture.initial);
-  for (const date of dates.slice(first, last + 1)) {
-    for (let minute = Math.min(Number(startMinute), Number(endMinute)); minute <= Math.max(Number(startMinute), Number(endMinute)); minute += 30) {
-      const slot = date + '|' + minute;
-      if (!blockedBy(slot)) setSlot(slot, paintGesture.value);
-    }
-  }
-  refreshSlotButtons(); updateCount();
-}
-function paintAtPointer() {
-  const box = document.querySelector('.schedule-scroll').getBoundingClientRect();
-  const x = Math.max(box.left + 56, Math.min(Math.min(box.right, innerWidth) - 4, paintGesture.x));
-  const y = Math.max(Math.max(box.top + 48, 0), Math.min(Math.min(box.bottom, innerHeight) - 4, paintGesture.y));
-  const button = document.elementFromPoint(x, y)?.closest('#schedule-grid [data-slot]');
-  if (button && button.dataset.slot !== paintGesture.end) { paintGesture.end = button.dataset.slot; paintRectangle(); }
-}
-function scrollWhilePainting() {
-  if (!paintGesture) return;
-  const scroll = document.querySelector('.schedule-scroll');
-  const box = scroll.getBoundingClientRect();
-  const horizontal = paintGesture.x > Math.min(box.right, innerWidth) - 28 ? 12 : paintGesture.x < box.left + 76 ? -12 : 0;
-  const vertical = paintGesture.y > Math.min(box.bottom, innerHeight) - 28 ? 12 : paintGesture.y < Math.max(box.top + 64, 0) ? -12 : 0;
-  if (horizontal || vertical) { scroll.scrollBy(horizontal, vertical); paintAtPointer(); }
-  paintFrame = requestAnimationFrame(scrollWhilePainting);
-}
-function finishPaint(cancelled) {
-  if (!paintGesture) return;
-  const gesture = paintGesture; paintGesture = null;
-  cancelAnimationFrame(paintFrame);
-  const grid = document.querySelector('#schedule-grid');
-  if (grid.hasPointerCapture(gesture.pointerId)) grid.releasePointerCapture(gesture.pointerId);
-  if (cancelled) { selected = gesture.initial; refreshSlotButtons(); updateCount(); }
-  else if (selected.size !== gesture.initial.size || [...selected].some(slot => !gesture.initial.has(slot))) changed();
-  setTimeout(() => { suppressClick = false; }, 0);
-}
-function setSlot(slot, value) { if (value) selected.add(slot); else selected.delete(slot); }
+let schedulePainter;
 function refreshSlotButtons() { document.querySelectorAll('[data-slot]').forEach(button => { const pressed = selected.has(button.dataset.slot); button.setAttribute('aria-pressed', String(pressed)); if (!button.hasAttribute('aria-disabled')) button.textContent = pressed ? '✓' : ''; button.setAttribute('aria-label', button.getAttribute('aria-label').replace(/선택됨|선택 안 됨/, pressed ? '선택됨' : '선택 안 됨')); }); }
-function toggleSlot(button) { if (savingResponse || button.hasAttribute('aria-disabled')) return; setSlot(button.dataset.slot, !selected.has(button.dataset.slot)); document.querySelectorAll('[data-slot]').forEach(slot => { slot.tabIndex = slot === button ? 0 : -1; }); refreshSlotButtons(); changed(); }
 function lockSelection() { document.querySelectorAll('[data-slot], #paint-toggle, #select-all, #clear-all, #refresh-results').forEach(button => { button.disabled = savingResponse; }); }
 function drawResults() {
   const data = savedMeeting;
@@ -216,7 +156,7 @@ function drawResults() {
 }
 async function saveResponse() {
   if (savingResponse) return;
-  finishPaint(false); savingResponse = true; lockSelection();
+  schedulePainter?.finish(false); savingResponse = true; lockSelection();
   const button = document.querySelector('#save-response'); button.disabled = true; button.textContent = '저장 중…';
   try {
     const result = await api('/meetings/' + meetingId + '/response', { method: 'PUT', body: JSON.stringify({ slots: [...selected], version: responseVersion }) });
