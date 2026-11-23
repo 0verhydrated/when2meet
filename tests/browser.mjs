@@ -22,7 +22,7 @@ try {
   alice.on('pageerror', error => failures.push(error.message));
   await alice.setViewport({ width: 1280, height: 800 });
   await navigate(alice, origin);
-  assert.equal(await alice.$eval('body', element => /[가-힣]\./.test(element.textContent)), false);
+  assert.equal(await alice.$eval('body', element => /시간표는 한 번|우리의 빈 시간이 만나는 곳|우리의 시간을 모으는 시작|한 번 등록하고, 매주 편하게/.test(element.textContent)), false);
   await alice.click('#signup-link'); await loaded(alice, '#signin');
   assert.match(await alice.$eval('#signin', element => element.getAttribute('href')), /^\/signin-with-chatgpt\?return_to=/);
   await alice.click('#signin'); await loaded(alice, '#profile-form');
@@ -75,8 +75,8 @@ try {
   assert.equal(await bob.$$eval('.slot[aria-disabled="true"]', elements => elements.length), 0);
   assert.equal((await bob.content()).includes('비공개 고정 수업'), false);
   await bob.click('#select-all'); await bob.click('#save-response');
-  await bob.waitForFunction(() => document.querySelector('#results').textContent.includes('2명 참여'));
-  assert.match(await bob.$eval('#results', element => element.textContent), /모두 가능 \(2\/2명\)/);
+  await bob.waitForFunction(() => document.querySelector('#results').textContent.includes('2명이 응답했어요'));
+  assert.match(await bob.$eval('#results', element => element.textContent), /모두 가능해요 \(2\/2명\)/);
   assert.equal(await bob.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await bob.screenshot({ path: fileURLToPath(new URL('meeting-mobile.png', output)), fullPage: true });
   await navigate(bob, origin + '/app?tab=fixed'); await loaded(bob, '#fixed-form');
@@ -84,7 +84,7 @@ try {
   await navigate(bob, link); await loaded(bob, '#save-response');
   assert.equal(await bob.$$eval('.slot[aria-disabled="true"]', elements => elements.length), 2);
   assert.equal(await bob.$$eval('.slot[aria-pressed="true"]', elements => elements.length), 4);
-  await alice.click('#refresh-results'); await alice.waitForFunction(() => document.querySelector('#results').textContent.includes('2명 참여'));
+  await alice.click('#refresh-results'); await alice.waitForFunction(() => document.querySelector('#results').textContent.includes('2명이 응답했어요'));
   assert.match(await alice.$eval('.candidate-list li', element => element.textContent), /11:00 ~ 12:00/);
   assert.equal(await alice.evaluate(() => document.activeElement.id), 'refresh-results');
   await navigate(bob, origin + '/app?new=1'); await loaded(bob, '#create-form'); assert.equal(await bob.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -102,7 +102,7 @@ try {
   const point = async (page, selector) => { const box = await (await page.$(selector)).boundingBox(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; };
   const drag = async (page, first, last) => { const start = await point(page, first); const end = await point(page, last); await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(end.x, end.y, { steps: 8 }); await page.mouse.up(); };
   await navigate(alice, origin + extended.path); await loaded(alice, '#save-response');
-  assert.equal(await alice.$eval('body', element => /[가-힣]\./.test(element.textContent)), false);
+  assert.equal(await alice.$eval('body', element => /시간표는 한 번|우리의 빈 시간이 만나는 곳|우리의 시간을 모으는 시작|한 번 등록하고, 매주 편하게/.test(element.textContent)), false);
   assert.equal(await alice.$$eval('.slot-col', elements => elements.length), 14);
   await alice.$eval('#schedule-grid', element => element.scrollIntoView({ block: 'center' }));
   await drag(alice, cell(day(2), 660), cell(day(0), 540));
@@ -146,6 +146,6 @@ try {
   await touch.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
   assert.equal(await bob.$$eval('.slot[aria-pressed="true"]', elements => elements.length), 6);
   assert.deepEqual(failures, []);
-  const result = { passed: true, signup: 'local identity adapter, production uses platform ChatGPT sign-in', link, checks: ['no duration input', 'no Korean full stops in UI copy', 'profile registration', 'fixed schedule persistence', 'working generated participation URL', 'clipboard action', 'locked excluded slots', 'keyboard Space and arrows', 'visible focus', 'two isolated participants', 'private schedule details hidden', 'response persistence', 'live fixed-schedule changes reflected in aggregate', 'mobile overflow', 'unknown meeting error', 'all 14 dates visible in same grid', 'reverse rectangular paint and erase', 'rectangle shrink restores outside selection', 'painted selection persists', 'mobile touch rectangle painting', 'keyboard moves across weeks', 'sticky mobile time axis', 'edge auto-scroll', 'pointer cancellation restores selection'], browserErrors: failures };
+  const result = { passed: true, signup: 'local identity adapter, production uses platform ChatGPT sign-in', link, checks: ['no duration input', 'fragmentary promotional slogans removed', 'profile registration', 'fixed schedule persistence', 'working generated participation URL', 'clipboard action', 'locked excluded slots', 'keyboard Space and arrows', 'visible focus', 'two isolated participants', 'private schedule details hidden', 'response persistence', 'live fixed-schedule changes reflected in aggregate', 'mobile overflow', 'unknown meeting error', 'all 14 dates visible in same grid', 'reverse rectangular paint and erase', 'rectangle shrink restores outside selection', 'painted selection persists', 'mobile touch rectangle painting', 'keyboard moves across weeks', 'sticky mobile time axis', 'edge auto-scroll', 'pointer cancellation restores selection'], browserErrors: failures };
   await writeFile(new URL('browser-results.json', output), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result, null, 2));
 } finally { await browser.close(); }
