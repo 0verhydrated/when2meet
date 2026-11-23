@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isBlocked, effectiveSlots, summarize } from '../worker/scheduling.js';
+import { isBlocked, effectiveSlots, summarize, meetingSlots } from '../worker/scheduling.js';
 const meeting = { start_date: '2026-11-23', end_date: '2026-11-23', start_hour: 9, end_hour: 12, duration: 60 };
 test('recurring exclusions use Seoul calendar weekday and half-open intervals', () => {
   const fixed = [{ weekday: 0, start: 570, end: 630 }];
@@ -37,4 +37,14 @@ test('equal counts from different participants do not form one continuous range'
     { date: '2026-11-23', start: 540, end: 570, count: 1 },
     { date: '2026-11-23', start: 570, end: 600, count: 1 }
   ]);
+});
+test('Participant availability uses current fixed schedules, preserves duplicate names and omits private details', () => {
+  const result = summarize(meeting, [
+    { name: '민준', user_id: 'private-one', email: 'private@example.com', slots_json: JSON.stringify(['2026-11-23|540', '2026-11-23|570', '2026-11-23|570', '2026-11-24|540']), fixed_json: JSON.stringify([{ name: '개인 상담', weekday: 0, start: 570, end: 600 }]) },
+    { name: '민준', user_id: 'private-two', slots_json: '[]', fixed_json: '[]' },
+  ]);
+  assert.deepEqual(result.participants, [{ name: '민준', slots: ['2026-11-23|540'] }, { name: '민준', slots: [] }]);
+  assert.equal(JSON.stringify(result).includes('개인 상담'), false);
+  assert.equal(JSON.stringify(result).includes('private'), false);
+  for (const slot of meetingSlots(meeting)) assert.equal(result.counts[slot], result.participants.filter(person => person.slots.includes(slot)).length);
 });

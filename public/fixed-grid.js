@@ -1,4 +1,4 @@
-import { bindScheduleGrid } from './schedule-grid.js';
+import { bindScheduleGrid, timeAxisMarkup } from './schedule-grid.js';
 export const weekOrder = [6, 0, 1, 2, 3, 4, 5];
 export const fixedDayStart = 540;
 export const fixedDayEnd = 1440;
@@ -76,7 +76,8 @@ export function mountFixedGrid(container, { current, save, onSaved, onDirty }) {
     selected = new Set([...selected].filter(slot => !blocked(slot).length));
     if (!grid.children.length) {
       const minutes = Array.from({ length: (fixedDayEnd - fixedDayStart) / 30 }, (_, i) => fixedDayStart + i * 30);
-      grid.innerHTML = '<div class="hours-col"><div class="col-head">시간</div>' + minutes.map(minute => `<span class="hour-label">${timeLabel(minute)}</span>`).join('') + '</div>' + weekOrder.map((weekday, index) => `<div class="slot-col"><div class="col-head">${days[weekday]}</div>${minutes.map(minute => `<button type="button" class="slot" data-slot="${weekday}|${minute}" tabindex="${index === 0 && minute === 540 ? '0' : '-1'}"></button>`).join('')}</div>`).join('');
+      grid.style.setProperty('--schedule-columns', String(weekOrder.length));
+      grid.innerHTML = timeAxisMarkup(minutes) + weekOrder.map((weekday, index) => `<div class="slot-col"><div class="col-head">${days[weekday]}</div>${minutes.map(minute => `<button type="button" class="slot" data-slot="${weekday}|${minute}" tabindex="${index === 0 && minute === 540 ? '0' : '-1'}"></button>`).join('')}</div>`).join('') + timeAxisMarkup(minutes, true);
       controller = bindScheduleGrid(grid, scroll, { columns: weekOrder, read: () => selected, write: value => { selected = value; }, blocked: slot => blocked(slot).length > 0, locked: () => busy, touch: () => touch, preview, commit: () => { onDirty(selected.size > 0); report(selected.size ? '칠한 시간에 이름을 붙여 저장해 주세요.' : '새로 칠한 시간을 지웠어요.'); } });
     }
     grid.querySelectorAll('.fixed-block').forEach(block => block.remove());

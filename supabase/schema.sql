@@ -151,7 +151,7 @@ begin
   end if;
   if response_suffix or p_method <> 'GET' then raise exception '요청한 기능을 찾을 수 없어요.' using errcode = '22023'; end if;
   select count(*) into total from public.responses r where r.meeting_id = meeting.id;
-  select coalesce(jsonb_agg(jsonb_build_object('name', p.name) order by r.updated_at, r.user_id), '[]'::jsonb) into participants from public.responses r join public.profiles p on p.id = r.user_id where r.meeting_id = meeting.id;
+  select coalesce(jsonb_agg(jsonb_build_object('name', p.name, 'slots', public.when2meet_effective_slots(r.slots_json, p.fixed_json)) order by r.updated_at, r.user_id), '[]'::jsonb) into participants from public.responses r join public.profiles p on p.id = r.user_id where r.meeting_id = meeting.id;
   select jsonb_build_object('slots', r.slots_json, 'version', r.version) into mine from public.responses r where r.meeting_id = meeting.id and r.user_id = actor;
   with availability as (
     select r.user_id, public.when2meet_effective_slots(r.slots_json, p.fixed_json) slots from public.responses r join public.profiles p on p.id = r.user_id where r.meeting_id = meeting.id

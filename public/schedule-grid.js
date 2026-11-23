@@ -1,3 +1,7 @@
+export function timeAxisMarkup(minutes, right = false) {
+  const label = minute => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+  return `<div class="hours-col${right ? ' end-hours-col' : ''}" ${right ? 'aria-hidden="true"' : ''}><div class="col-head">시간</div>${minutes.map(minute => `<span class="hour-label">${label(minute)}</span>`).join('')}<span class="axis-end-label">${label(minutes.at(-1) + 30)}</span></div>`;
+}
 export function rectangleSlots(columns, origin, end) {
   const [firstColumn, firstMinute] = origin.split('|'), [lastColumn, lastMinute] = end.split('|');
   const a = columns.map(String).indexOf(firstColumn), b = columns.map(String).indexOf(lastColumn), slots = [];
@@ -19,7 +23,8 @@ export function bindScheduleGrid(grid, scroll, { columns, read, write, blocked =
   };
   const atPointer = () => {
     const box = scroll.getBoundingClientRect();
-    const x = Math.max(box.left + 56, Math.min(Math.min(box.right, innerWidth) - 4, gesture.x));
+    const rightAxis = grid.querySelector('.end-hours-col')?.offsetWidth || 0;
+    const x = Math.max(box.left + 56, Math.min(Math.min(box.right, innerWidth) - rightAxis - 4, gesture.x));
     const y = Math.max(Math.max(box.top + 48, 0), Math.min(Math.min(box.bottom, innerHeight) - 4, gesture.y));
     const button = document.elementFromPoint(x, y)?.closest('[data-slot]');
     if (button && grid.contains(button) && button.dataset.slot !== gesture.end) { gesture.end = button.dataset.slot; paint(); }

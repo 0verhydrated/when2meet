@@ -17,10 +17,12 @@ export function summarize(meeting, responses) {
   const slots = meetingSlots(meeting);
   const counts = Object.fromEntries(slots.map(slot => [slot, 0]));
   const availableBy = Object.fromEntries(slots.map(slot => [slot, []]));
-  for (const [index, response] of responses.entries()) {
-    for (const slot of new Set(effectiveSlots(JSON.parse(response.slots_json), JSON.parse(response.fixed_json)))) {
-      if (Object.hasOwn(counts, slot)) { counts[slot]++; availableBy[slot].push(index); }
-    }
+  const participants = responses.map(response => {
+    const effective = new Set(effectiveSlots(JSON.parse(response.slots_json), JSON.parse(response.fixed_json)));
+    return { name: response.name, slots: slots.filter(slot => effective.has(slot)) };
+  });
+  for (const [index, participant] of participants.entries()) {
+    for (const slot of participant.slots) { counts[slot]++; availableBy[slot].push(index); }
   }
   const candidates = [];
   if (responses.length) {
@@ -40,5 +42,5 @@ export function summarize(meeting, responses) {
     }
   }
   candidates.sort((first, second) => second.count - first.count || first.date.localeCompare(second.date) || first.start - second.start);
-  return { counts, candidates: candidates.slice(0, 8), participants: responses.map(response => ({ name: response.name })), total: responses.length };
+  return { counts, candidates: candidates.slice(0, 8), participants, total: responses.length };
 }
