@@ -2,6 +2,37 @@ import { bindScheduleGrid } from './schedule-grid.js';
 export const weekOrder = [6, 0, 1, 2, 3, 4, 5];
 const days = ['월', '화', '수', '목', '금', '토', '일'];
 const timeLabel = minute => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+export function layoutFixedBlocks(items) {
+  const colors = new Map(), used = new Set();
+  // Saved IDs are random, so their colors are varied but stable on reload.
+  for (const item of [...items].sort((a, b) => a.id.localeCompare(b.id))) {
+    let hash = 2166136261;
+    for (const character of item.id) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
+    let index = hash % 50;
+    while (used.has(index)) index = (index + 17) % 50;
+    used.add(index); colors.set(item.id, (index * 137.508) % 360);
+  }
+  const result = [];
+  for (const weekday of weekOrder) {
+    const day = items.filter(item => item.weekday === weekday).sort((a, b) => a.start - b.start || b.end - a.end || a.id.localeCompare(b.id));
+    let group = [], groupEnd = -1;
+    const flush = () => {
+      const ends = [], positioned = [];
+      for (const item of group) {
+        let lane = ends.findIndex(end => end <= item.start);
+        if (lane < 0) lane = ends.length;
+        ends[lane] = item.end; positioned.push({ ...item, lane, hue: colors.get(item.id) });
+      }
+      result.push(...positioned.map(item => ({ ...item, lanes: ends.length })));
+    };
+    for (const item of day) {
+      if (group.length && item.start >= groupEnd) { flush(); group = []; groupEnd = -1; }
+      group.push(item); groupEnd = Math.max(groupEnd, item.end);
+    }
+    flush();
+  }
+  return result;
+}
 export function fixedRanges(cells, name) {
   const result = [];
   for (const weekday of weekOrder) {
@@ -27,7 +58,7 @@ export function mountFixedGrid(container, { current, save, onSaved, onDirty }) {
       button.setAttribute('aria-pressed', String(active));
       button.classList.toggle('saved-fixed', saved.length > 0);
       if (saved.length) button.setAttribute('aria-disabled', 'true'); else button.removeAttribute('aria-disabled');
-      button.textContent = saved.length ? [...new Set(saved.map(item => item.name))].join(' · ') : active ? '✓' : '';
+      button.textContent = active ? '✓' : '';
       button.title = saved.map(item => item.name).join(' · ');
       button.setAttribute('aria-label', `${days[weekday]}요일 ${timeLabel(minute)}부터 ${timeLabel(minute + 30)}까지, ${saved.length ? button.title + ' 저장됨' : active ? '선택됨' : '선택 안 됨'}`);
       button.disabled = busy;
@@ -42,6 +73,21 @@ export function mountFixedGrid(container, { current, save, onSaved, onDirty }) {
       grid.innerHTML = '<div class="hours-col"><div class="col-head">시간</div>' + minutes.map(minute => `<span class="hour-label">${timeLabel(minute)}</span>`).join('') + '</div>' + weekOrder.map((weekday, index) => `<div class="slot-col"><div class="col-head">${days[weekday]}</div>${minutes.map(minute => `<button type="button" class="slot" data-slot="${weekday}|${minute}" tabindex="${index === 0 && minute === 540 ? '0' : '-1'}"></button>`).join('')}</div>`).join('');
       controller = bindScheduleGrid(grid, scroll, { columns: weekOrder, read: () => selected, write: value => { selected = value; }, blocked: slot => blocked(slot).length > 0, locked: () => busy, touch: () => touch, preview, commit: () => { onDirty(selected.size > 0); report(selected.size ? '칠한 시간에 이름을 붙여 저장해 주세요.' : '새로 칠한 시간을 지웠어요.'); } });
       scroll.scrollTop = 18 * grid.querySelector('[data-slot]').offsetHeight;
+    }
+    grid.querySelectorAll('.fixed-block').forEach(block => block.remove());
+    const rowHeight = grid.querySelector('[data-slot]').offsetHeight;
+    const columns = [...grid.querySelectorAll('.slot-col')];
+    for (const item of layoutFixedBlocks(current())) {
+      const block = document.createElement('div'), name = document.createElement('span');
+      block.className = 'fixed-block'; block.setAttribute('aria-hidden', 'true'); block.dataset.fixedId = item.id;
+      block.style.top = (1 + item.start / 30) * rowHeight + 2 + 'px';
+      block.style.height = (item.end - item.start) / 30 * rowHeight - 4 + 'px';
+      block.style.left = `calc(${item.lane / item.lanes * 100}% + 2px)`;
+      block.style.width = `calc(${100 / item.lanes}% - 4px)`;
+      block.style.backgroundColor = `hsl(${item.hue} 56% 85%)`;
+      block.style.borderColor = `hsl(${item.hue} 35% 65%)`;
+      name.className = 'fixed-block-name'; name.textContent = item.name; block.append(name);
+      columns[weekOrder.indexOf(item.weekday)].append(block);
     }
     preview(); onDirty(selected.size > 0);
   };
