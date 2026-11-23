@@ -146,7 +146,7 @@ try {
   await bob.screenshot({ path: fileURLToPath(new URL('two-week-mobile.png', output)), fullPage: true });
   await bob.$eval('.schedule-scroll', element => { element.scrollLeft = 0; element.scrollIntoView({ block: 'center' }); });
   const edgeStart = await point(bob, cell(day(1), 660));
-  const edge = await bob.$eval('.schedule-scroll', element => { const box = element.getBoundingClientRect(); return { x: box.right - 5, y: box.top + 44 * 5.5 }; });
+  const edge = await bob.$eval('.schedule-scroll', element => { const box = element.getBoundingClientRect(); return { x: box.right - 5, y: box.top + 24 * 5.5 }; });
   await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...edgeStart, id: 1 }] });
   await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...edge, id: 1 }] });
   await bob.waitForFunction(() => document.querySelector('.schedule-scroll').scrollLeft > 200);

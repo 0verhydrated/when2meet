@@ -49,7 +49,7 @@ export function bindScheduleGrid(grid, scroll, { columns, read, write, blocked =
     const box = scroll.getBoundingClientRect();
     const rightAxis = grid.querySelector('.end-hours-col')?.offsetWidth || 0;
     const x = Math.max(box.left + 56, Math.min(Math.min(box.right, innerWidth) - rightAxis - 4, gesture.x));
-    const y = Math.max(Math.max(box.top + 48, 0), Math.min(Math.min(box.bottom, innerHeight) - 4, gesture.y));
+    const y = Math.max(Math.max(box.top + grid.querySelector('.col-head').offsetHeight + 4, 0), Math.min(Math.min(box.bottom, innerHeight) - 4, gesture.y));
     const button = document.elementFromPoint(x, y)?.closest('[data-slot]');
     if (button && grid.contains(button) && button.dataset.slot !== gesture.end) { gesture.end = button.dataset.slot; paint(); }
   };
@@ -57,7 +57,7 @@ export function bindScheduleGrid(grid, scroll, { columns, read, write, blocked =
     if (!gesture) return;
     const box = scroll.getBoundingClientRect();
     const x = gesture.x > Math.min(box.right, innerWidth) - 28 ? 12 : gesture.x < box.left + 76 ? -12 : 0;
-    const y = gesture.y > Math.min(box.bottom, innerHeight) - 28 ? 12 : gesture.y < Math.max(box.top + 64, 0) ? -12 : 0;
+    const y = gesture.y > Math.min(box.bottom, innerHeight) - 28 ? 12 : gesture.y < Math.max(box.top + grid.querySelector('.col-head').offsetHeight + 20, 0) ? -12 : 0;
     if (x || y) { scroll.scrollBy(x, y); atPointer(); }
     frame = requestAnimationFrame(autoScroll);
   };
