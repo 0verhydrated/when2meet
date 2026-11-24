@@ -133,7 +133,8 @@ input[aria-invalid="true"] { border-color: var(--color-error); }
 .fixed-list button { color: var(--color-error); }
 .fixed-summary { color: var(--color-muted); font-size: var(--text-sm); margin-bottom: var(--space-md); }
 .meeting-list { list-style: none; margin: 0; padding: 0; }
-.meeting-list li { border-bottom: 1px solid var(--color-rule); }
+.meeting-list li { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--color-rule); }
+.meeting-list li > a { flex: 1; min-width: 0; }
 .meeting-list a { display: flex; align-items: center; justify-content: space-between; gap: var(--space-lg); padding-block: var(--space-lg); text-decoration: none; }
 .meeting-list a:hover h2 { color: var(--color-accent); }
 .meeting-list h2 { font-size: var(--text-lg); }
@@ -144,6 +145,7 @@ input[aria-invalid="true"] { border-color: var(--color-error); }
 .share-label { display: inline-flex; align-items: center; min-height: 36px; padding: 4px 12px; border: 1px solid var(--color-edge); border-radius: var(--radius-control); background: var(--color-paper-2); font-size: var(--text-sm); }
 .copy-link-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 8px; border: 1px solid var(--color-edge); border-radius: var(--radius-control); background: var(--color-paper); color: var(--color-ink-2); }
 .copy-link-button:hover { background: var(--color-paper-2); }
+.share-controls .delete-meeting { order: 1; }
 .copy-link-button svg { width: 18px; height: 18px; }
 .share-url { display: block; width: min(100%, 32rem); margin-top: var(--space-sm); }
 .share-panel .helper { margin-top: var(--space-xs); }
@@ -285,4 +287,11 @@ input[aria-invalid="true"] { border-color: var(--color-error); }
 .meeting-page .candidate-list li { padding-block: 8px; }
 .meeting-page .participants { padding-top: 12px; }
 .meeting-page .overview-detail { padding: 12px; margin-top: 10px; }
+.deletion-dialog { width: min(420px, calc(100% - 32px)); max-height: calc(100svh - 32px); overflow: auto; padding: 24px; border: 1px solid var(--color-edge); border-radius: 12px; background: var(--color-paper); color: var(--color-ink); }
+.deletion-dialog::backdrop { background: #14271a66; }
+.deletion-dialog h2 { font-size: 1.25rem; }
+.deletion-dialog #deletion-description { margin-block: 16px; font-size: .875rem; }
+.deletion-dialog .form-actions { justify-content: flex-end; }
+.danger-button { background: var(--color-error); color: white; }
+.delete-meeting { color: var(--color-error); }
 @media (pointer: fine) { .meeting-page .paint-options { display: none; } }

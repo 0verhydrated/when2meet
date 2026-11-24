@@ -1,5 +1,6 @@
 import { meetingSlots, effectiveSlots, summarize } from './scheduling.js';
 import { fetchEverytime, EverytimeError } from './everytime.js';
+import { validDeletionPassword, hashDeletionPassword, verifyDeletionPassword } from './meeting-password.js';
 
 const STATIC_ASSETS = {};
 class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
@@ -70,21 +71,45 @@ export async function handle(request, env, assets = STATIC_ASSETS) {
       return json({ fixed: items, fixed_version: saved.fixed_version });
     }
     if (url.pathname === '/api/meetings' && request.method === 'GET') {
-      const rows = await env.DB.prepare('SELECT m.id, m.owner_id, m.title, m.start_date, m.end_date, m.start_hour, m.end_hour, m.created_at, (SELECT COUNT(*) FROM responses r WHERE r.meeting_id = m.id) AS response_count FROM meetings m WHERE m.owner_id = ? OR EXISTS (SELECT 1 FROM responses r WHERE r.meeting_id = m.id AND r.user_id = ?) ORDER BY m.created_at DESC, m.rowid DESC LIMIT 100').bind(identity, identity).all();
+      const rows = await env.DB.prepare('SELECT m.id, m.owner_id, m.title, m.start_date, m.end_date, m.start_hour, m.end_hour, m.created_at, m.owner_id = ? AS can_delete, m.delete_password_hash IS NOT NULL AS has_delete_password, (SELECT COUNT(*) FROM responses r WHERE r.meeting_id = m.id) AS response_count FROM meetings m WHERE m.deleted_at IS NULL AND (m.owner_id = ? OR EXISTS (SELECT 1 FROM responses r WHERE r.meeting_id = m.id AND r.user_id = ?)) ORDER BY m.created_at DESC, m.rowid DESC LIMIT 100').bind(identity, identity, identity).all();
       return json({ meetings: rows.results });
     }
     if (url.pathname === '/api/meetings' && request.method === 'POST') {
       const value = await body(request);
       validateMeeting(value);
+      check(validDeletionPassword(value.delete_password), '삭제 비밀번호는 8~128자로 입력해 주세요.');
+      const passwordHash = await hashDeletionPassword(value.delete_password);
       const id = crypto.randomUUID().replaceAll('-', '');
-      await env.DB.prepare('INSERT INTO meetings (id, owner_id, title, start_date, end_date, start_hour, end_hour, duration) VALUES (?, ?, ?, ?, ?, ?, ?, 0)').bind(id, identity, value.title.trim(), value.start_date, value.end_date, value.start_hour, value.end_hour).run();
+      await env.DB.prepare('INSERT INTO meetings (id, owner_id, title, start_date, end_date, start_hour, end_hour, duration, delete_password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)').bind(id, identity, value.title.trim(), value.start_date, value.end_date, value.start_hour, value.end_hour, passwordHash).run();
       return json({ id, path: '/m/' + id }, 201);
     }
-    const match = /^\/api\/meetings\/([a-f0-9]{32})(\/response)?$/.exec(url.pathname);
+    const match = /^\/api\/meetings\/([a-f0-9]{32})(\/(?:response|delete-password))?$/.exec(url.pathname);
     if (match) {
-      const meeting = await env.DB.prepare('SELECT id, owner_id, title, start_date, end_date, start_hour, end_hour, created_at FROM meetings WHERE id = ?').bind(match[1]).first();
+      const meeting = await env.DB.prepare('SELECT id, owner_id, title, start_date, end_date, start_hour, end_hour, created_at FROM meetings WHERE id = ? AND (deleted_at IS NULL OR ? = 1)').bind(match[1], Number(!match[2] && request.method === 'DELETE')).first();
       check(meeting, '약속 링크를 찾을 수 없어요. 주소를 다시 확인해 주세요.', 404);
-      if (match[2] && request.method === 'PUT') {
+      if ((!match[2] && request.method === 'DELETE') || (match[2] === '/delete-password' && request.method === 'POST')) {
+        check(meeting.owner_id === identity, '약속을 만든 사람만 삭제할 수 있어요.', 403);
+        const value = await body(request);
+        check(validDeletionPassword(value.password), '삭제 비밀번호는 8~128자로 입력해 주세요.');
+        const secret = await env.DB.prepare('SELECT delete_password_hash, delete_failures, delete_reset_at FROM meetings WHERE id = ?').bind(meeting.id).first();
+        if (match[2]) {
+          check(!secret.delete_password_hash, '이미 삭제 비밀번호가 설정돼 있어요.', 409);
+          const stored = await hashDeletionPassword(value.password);
+          const saved = await env.DB.prepare('UPDATE meetings SET delete_password_hash = ? WHERE id = ? AND delete_password_hash IS NULL AND deleted_at IS NULL RETURNING id').bind(stored, meeting.id).first();
+          check(saved, '다른 창에서 약속이 변경됐어요. 새로고침해 주세요.', 409);
+          return json({ ok: true });
+        }
+        check(secret.delete_password_hash, '먼저 삭제 비밀번호를 설정해 주세요.', 409);
+        const now = Date.now();
+        check(!(secret.delete_failures >= 5 && secret.delete_reset_at > now), '비밀번호 확인 횟수를 초과했어요. 15분 뒤 다시 시도해 주세요.', 429);
+        if (!await verifyDeletionPassword(value.password, secret.delete_password_hash)) {
+          await env.DB.prepare('UPDATE meetings SET delete_failures = CASE WHEN delete_reset_at <= ? THEN 1 ELSE delete_failures + 1 END, delete_reset_at = CASE WHEN delete_reset_at <= ? THEN ? ELSE delete_reset_at END WHERE id = ?').bind(now, now, now + 900000, meeting.id).run();
+          throw new HttpError(400, '삭제 비밀번호를 확인해 주세요.');
+        }
+        await env.DB.prepare('UPDATE meetings SET deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP) WHERE id = ?').bind(meeting.id).run();
+        return json({ deleted: true });
+      }
+      if (match[2] === '/response' && request.method === 'PUT') {
         const value = await body(request);
         const allowed = new Set(meetingSlots(meeting));
         check(Array.isArray(value.slots) && value.slots.length <= allowed.size && value.slots.every(slot => typeof slot === 'string' && allowed.has(slot)), '선택한 시간이 약속 범위를 벗어났어요.');
@@ -97,7 +122,8 @@ export async function handle(request, env, assets = STATIC_ASSETS) {
       if (!match[2] && request.method === 'GET') {
         const rows = await env.DB.prepare('SELECT r.user_id, r.slots_json, r.version, u.name, u.fixed_json FROM responses r JOIN users u ON u.id = r.user_id WHERE r.meeting_id = ? ORDER BY r.updated_at, r.user_id').bind(meeting.id).all();
         const mine = rows.results.find(response => response.user_id === identity);
-        return json({ meeting, ...summarize(meeting, rows.results), mine: mine ? { slots: JSON.parse(mine.slots_json), version: mine.version } : null });
+        const secret = await env.DB.prepare('SELECT delete_password_hash IS NOT NULL AS configured FROM meetings WHERE id = ?').bind(meeting.id).first();
+        return json({ meeting, can_delete: meeting.owner_id === identity, has_delete_password: Boolean(secret.configured), ...summarize(meeting, rows.results), mine: mine ? { slots: JSON.parse(mine.slots_json), version: mine.version } : null });
       }
     }
     throw new HttpError(404, '요청한 기능을 찾을 수 없어요.');

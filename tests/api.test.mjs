@@ -15,7 +15,7 @@ test('signup, persistence, link participation, authorization and stale-write pro
   assert.equal((await request('/profile', { method: 'POST', data: { name: 'bad' }, origin: 'https://evil.example' })).status, 403);
   const date = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const weekday = (new Date(date).getUTCDay() + 6) % 7;
-  const created = await request('/meetings', { method: 'POST', data: { title: '스터디', start_date: date, end_date: date, start_hour: 9, end_hour: 12 } });
+  const created = await request('/meetings', { method: 'POST', data: { title: '스터디', delete_password: 'delete-password-2026', start_date: date, end_date: date, start_hour: 9, end_hour: 12 } });
   assert.equal(created.status, 201);
   const path = '/meetings/' + created.body.id;
   assert.match(created.body.path, /^\/m\/[a-f0-9]{32}$/);

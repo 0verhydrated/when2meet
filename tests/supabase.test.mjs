@@ -5,9 +5,20 @@ import { PGlite } from '@electric-sql/pglite';
 
 test('Supabase RPC preserves ownership, private fixed schedules, aggregate results and stale-write protection', async () => {
   const db = new PGlite();
+  // PGlite does not ship pgcrypto. These stand-ins test RPC authorization and
+  // state transitions; the production extension and bcrypt are checked separately.
+  const deletionMigration = (await readFile(new URL('../supabase/migrations/202611240001_meeting_deletion.sql', import.meta.url), 'utf8')).replace('create extension if not exists pgcrypto with schema extensions;', '');
+  const installDeletion = async () => {
+    await db.exec(`create schema if not exists extensions;
+      create or replace function extensions.digest(text,text) returns bytea language sql as $$ select sha256(convert_to($1,'UTF8')) $$;
+      create or replace function extensions.gen_salt(text,integer) returns text language sql as $$ select gen_random_uuid()::text $$;
+      create or replace function extensions.crypt(text,text) returns text language sql as $$ select split_part($2,'$',1) || '$' || md5($1 || split_part($2,'$',1)) $$;`);
+    await db.exec(deletionMigration);
+  };
   try {
     await db.exec("create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key, raw_user_meta_data jsonb); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$; grant usage on schema auth to authenticated, anon; grant execute on function auth.uid() to authenticated, anon;");
     await db.exec(await readFile(new URL('../supabase/schema.sql', import.meta.url), 'utf8'));
+    await installDeletion();
     const alice = '11111111-1111-4111-8111-111111111111'; const bob = '22222222-2222-4222-8222-222222222222';
     for (const [id, name] of [[alice, '가'], [bob, '나']]) await db.query('insert into auth.users values ($1, $2)', [id, JSON.stringify({ name })]);
     const asUser = async id => { await db.exec('reset role'); await db.query("select set_config('request.jwt.claim.sub', $1, false)", [id]); await db.exec('set role authenticated'); };
@@ -23,7 +34,7 @@ test('Supabase RPC preserves ownership, private fixed schedules, aggregate resul
     assert.equal((await api('/fixed', 'PUT', fixed)).fixed_version, 1);
     await assert.rejects(api('/fixed', 'PUT', fixed), /다른 창/);
     await assert.rejects(api('/fixed', 'PUT', { version: 1, items: [{ name: 'bad', weekday: 99, start: 500, end: 450 }] }), /고정 일정/);
-    const created = await api('/meetings', 'POST', { title: '스터디', start_date: date, end_date: date, start_hour: 9, end_hour: 12 });
+    const created = await api('/meetings', 'POST', { title: '스터디', delete_password: 'delete-password-2026', start_date: date, end_date: date, start_hour: 9, end_hour: 12 });
     assert.match(created.id, /^[a-f0-9]{32}$/);
     const path = '/meetings/' + created.id;
     const slots = [540, 570, 600, 630, 660, 690].map(minute => date + '|' + minute);
@@ -44,6 +55,7 @@ test('Supabase RPC preserves ownership, private fixed schedules, aggregate resul
     assert.equal(JSON.stringify(result).includes('개인 상담'), false);
     await db.exec('reset role');
     await db.exec(await readFile(new URL('../supabase/migrations/202611230001_participant_availability.sql', import.meta.url), 'utf8'));
+    await installDeletion();
     await asUser(bob);
     assert.equal((await api(path)).total, 2);
     assert.deepEqual((await api(path)).participants.find(person => person.name === '가').slots, slots.slice(2));
@@ -51,6 +63,30 @@ test('Supabase RPC preserves ownership, private fixed schedules, aggregate resul
     assert.equal((await api(path)).candidates[0].start, 660);
     assert.deepEqual((await api(path)).participants.find(person => person.name === '나').slots, [slots[0], slots[1], slots[4], slots[5]]);
     assert.equal((await api('/meetings')).meetings.length, 1);
+    assert.equal((await api(path)).can_delete, false);
+    await assert.rejects(api(path, 'DELETE', { password: 'delete-password-2026' }), /만든 사람/);
+    await assert.rejects(db.query('select * from public.meeting_deletion_secrets'), /permission denied/);
+    await assert.rejects(db.query("select public.when2meet_api_base('/meetings','GET','{}')"), /permission denied/);
+    await asUser(alice);
+    for (let i=0; i<5; i++) assert.match((await api(path, 'DELETE', { password: 'wrong-password' })).error, /비밀번호를 확인/);
+    assert.match((await api(path, 'DELETE', { password: 'delete-password-2026' })).error, /15분/);
+    await db.exec('reset role'); await db.query("update public.meeting_deletion_secrets set reset_at=now()-interval '1 second' where meeting_id=$1", [created.id]); await asUser(alice);
+    assert.equal(JSON.stringify(await api(path)).includes('password_hash'), false);
+    assert.equal((await api(path, 'DELETE', { password: 'delete-password-2026' })).deleted, true);
+    await assert.rejects(api(path), /약속 링크/);
+    await assert.rejects(api(path + '/response', 'PUT', { slots: [], version: 1 }), /약속 링크/);
+    assert.deepEqual((await api('/meetings')).meetings, []);
+    await asUser(bob); assert.deepEqual((await api('/meetings')).meetings, []);
+    await db.exec('reset role');
+    const legacyId = 'b'.repeat(32);
+    await db.query('insert into public.meetings(id,owner_id,title,start_date,end_date,start_hour,end_hour) values($1,$2,$3,$4,$4,9,10)', [legacyId, alice, '이전 약속', date]);
+    await asUser(bob);
+    await assert.rejects(api('/meetings/' + legacyId + '/delete-password', 'POST', { password: 'legacy-password' }), /만든 사람/);
+    await asUser(alice);
+    assert.equal((await api('/meetings/' + legacyId)).has_delete_password, false);
+    await api('/meetings/' + legacyId + '/delete-password', 'POST', { password: 'legacy-password' });
+    await assert.rejects(api('/meetings/' + legacyId + '/delete-password', 'POST', { password: 'replacement-password' }), /이미/);
+    assert.equal((await api('/meetings/' + legacyId, 'DELETE', { password: 'legacy-password' })).deleted, true);
     await db.exec('reset role; set role anon');
     await assert.rejects(api(path), /permission denied/);
     await db.exec('reset role'); await db.query("select set_config('request.jwt.claim.sub', '', false)"); await db.exec('set role authenticated');
