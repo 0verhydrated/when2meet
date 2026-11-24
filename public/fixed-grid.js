@@ -81,8 +81,8 @@ export function mountFixedGrid(container, { current, save, onSaved, onDirty }) {
       controller = bindScheduleGrid(grid, scroll, { columns: weekOrder, read: () => selected, write: value => { selected = value; }, blocked: slot => blocked(slot).length > 0, locked: () => busy, touch: () => touch, preview, commit: () => { onDirty(selected.size > 0); report(selected.size ? '칠한 시간에 이름을 붙여 저장해 주세요.' : '새로 칠한 시간을 지웠어요.'); } });
     }
     grid.querySelectorAll('.fixed-block').forEach(block => block.remove());
-    const rowHeight = grid.querySelector('[data-slot]').offsetHeight;
-    const headerHeight = grid.querySelector('.col-head').offsetHeight;
+    const rowHeight = grid.querySelector('[data-slot]').getBoundingClientRect().height;
+    const headerHeight = grid.querySelector('.col-head').getBoundingClientRect().height;
     const columns = [...grid.querySelectorAll('.slot-col')];
     for (const original of layoutFixedBlocks(current())) {
       const item = visibleFixedBlock(original);
@@ -104,14 +104,15 @@ export function mountFixedGrid(container, { current, save, onSaved, onDirty }) {
   zoomButton.onclick = () => {
     if (busy) return;
     controller.finish(true);
-    const topRow = scroll.scrollTop / grid.querySelector('[data-slot]').offsetHeight;
+    const topRow = scroll.scrollTop / grid.querySelector('[data-slot]').getBoundingClientRect().height;
     compact = !compact; scroll.classList.toggle('is-compact', compact);
     const label = compact ? '시간표 원래 크기로 보기' : '시간표 축소해서 보기';
     zoomButton.setAttribute('aria-pressed', String(compact)); zoomButton.setAttribute('aria-label', label); zoomButton.title = label;
     zoomButton.querySelector('span').textContent = compact ? '원래 크기' : '축소 보기';
     zoomButton.querySelector('.zoom-plus').toggleAttribute('hidden', !compact);
-    refresh(); scroll.scrollTop = topRow * grid.querySelector('[data-slot]').offsetHeight;
-    report(compact ? '시간표를 축소했어요. 돋보기를 다시 누르면 원래 크기로 돌아가요.' : '시간표를 원래 크기로 표시해요.');
+    refresh(); scroll.scrollTop = compact ? 0 : topRow * grid.querySelector('[data-slot]').getBoundingClientRect().height;
+    if (compact) scroll.scrollIntoView({ block: 'start' });
+    report(compact ? '전체 시간표를 화면에 맞췄어요. 돋보기를 다시 누르면 원래 크기로 돌아가요.' : '시간표를 원래 크기로 표시해요.');
   };
   container.querySelector('#fixed-paint-toggle').onclick = event => { touch = !touch; scroll.classList.toggle('painting', touch); event.currentTarget.setAttribute('aria-pressed', String(touch)); event.currentTarget.textContent = touch ? '스크롤로 이동하기' : '드래그로 칠하기'; };
   container.querySelector('#fixed-clear').onclick = () => { if (busy) return; controller.finish(true); selected.clear(); preview(); onDirty(false); report('새로 칠한 시간을 지웠어요.'); };
@@ -127,6 +128,7 @@ export function mountFixedGrid(container, { current, save, onSaved, onDirty }) {
     catch (error) { report(error.message, true); }
     finally { busy = false; refresh(); }
   };
+  new ResizeObserver(() => { if (compact) refresh(); }).observe(scroll);
   refresh();
   return { refresh };
 }
