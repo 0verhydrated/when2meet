@@ -38,7 +38,7 @@ export async function handle(request, env, assets = STATIC_ASSETS) {
     const path = url.pathname === '/' || url.pathname === '/app' || /^\/m\/[a-f0-9]{32}$/.test(url.pathname) ? '/index.html' : url.pathname;
     const asset = assets[path];
     if (!asset) return new Response('페이지를 찾을 수 없어요.', { status: 404 });
-    return new Response(request.method === 'HEAD' ? null : asset.body, { headers: { 'Content-Type': asset.type, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'", 'Cache-Control': 'no-cache' } });
+    return new Response(request.method === 'HEAD' ? null : asset.body, { headers: { 'Content-Type': asset.type, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'", 'Cache-Control': 'no-cache' } });
   }
   try {
     if (!['GET', 'HEAD'].includes(request.method)) {
