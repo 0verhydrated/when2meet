@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildOverviewModel, matchesOverviewFilter, overviewSlotDetails } from '../public/availability-overview.js';
+import { buildOverviewModel, matchesOverviewFilter, overviewSlotDetails, overviewCell, overviewFilterLabel } from '../public/availability-overview.js';
 import { toggleColumnSelection } from '../public/schedule-grid.js';
 
 const meeting = { start_date: '2026-11-24', end_date: '2026-11-25', start_hour: 9, end_hour: 10 };
@@ -33,4 +33,17 @@ test('Date selection fills a partial day, skips fixed commitments and preserves 
   assert.deepEqual([...toggleColumnSelection(selected, day, blocked)], ['2026-11-25|540']);
   assert.deepEqual([...current], [day[0], '2026-11-25|540']);
   assert.deepEqual([...toggleColumnSelection(current, day, () => true)], [...current]);
+});
+
+test('Combined result views keep individual availability separate from aggregate counts and handle empty responses', () => {
+  const model = buildOverviewModel(meeting, people);
+  const first = model.people[0].key, second = model.people[1].key;
+  assert.equal(overviewFilterLabel(model, first), '민준 (1)');
+  assert.equal(overviewCell(model, '2026-11-24|570', first).text, '—');
+  assert.equal(overviewCell(model, '2026-11-24|570', second).text, '✓');
+  assert.equal(overviewCell(model, '2026-11-24|570', 'all').text, '1/3');
+  assert.equal(overviewCell(model, '2026-11-24|570', 'best').text, '—');
+  assert.equal(overviewCell(model, '2026-11-24|540', 'best').text, '2/3');
+  assert.equal(model.slots.some(slot => overviewCell(model, slot, model.people[2].key).count), false);
+  assert.deepEqual(people[2].slots, []);
 });

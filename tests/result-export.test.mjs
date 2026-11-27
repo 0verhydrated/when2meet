@@ -34,3 +34,13 @@ test('An empty meeting exports zero counts without claiming unanimity', () => {
   assert.equal(sheets[0].data[3][1].value, 0);
   assert.equal(sheets[1].data.length, 1);
 });
+
+test('Individual view exports the selected participant without changing the complete response sheet', () => {
+  const data = { meeting: { title: '개인 보기', start_date: '2026-11-24', end_date: '2026-11-24', start_hour: 9, end_hour: 10 }, participants: [{ name: '민준', slots: ['2026-11-24|540'] }, { name: '민준', slots: ['2026-11-24|570'] }] };
+  const sheets = buildWorkbookSheets(data, JSON.stringify(['민준', 2]));
+  assert.match(sheets[0].data[1][0].value, /민준 \(2\)/);
+  assert.deepEqual(sheets[0].data.slice(3).map(row => row[1].value), [0, 1]);
+  assert.equal(sheets[1].data.length, 3);
+  assert.equal(sheets[1].data[1][0].value, '민준 (1)');
+  assert.equal(sheets[1].data[2][0].value, '민준 (2)');
+});

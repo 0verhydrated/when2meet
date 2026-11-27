@@ -8,7 +8,7 @@ import { openDatabase } from '../scripts/database.mjs';
 import { handleAuth, sessionUser, authJson } from './auth.mjs';
 
 const types = { html: 'text/html; charset=utf-8', css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', svg: 'image/svg+xml' };
-const assets = Object.fromEntries(['index.html', 'styles.css', 'tokens.css', 'app.js', 'demo.js', 'auth-ui.js', 'backend.js', 'everytime-import.js', 'fixed-grid.js', 'schedule-grid.js', 'participant-table.js', 'availability-overview.js', 'response-editor.js', 'meeting-deletion.js', 'dialog.js', 'saved-schedules.js', 'result-export.js', 'navigation.js', 'favicon.svg'].map(name => ['/' + name, { body: readFileSync(new URL('../public/' + name, import.meta.url), 'utf8'), type: types[name.split('.').pop()] }]));
+const assets = Object.fromEntries(['index.html', 'styles.css', 'tokens.css', 'app.js', 'demo.js', 'auth-ui.js', 'backend.js', 'everytime-import.js', 'fixed-grid.js', 'schedule-grid.js', 'availability-overview.js', 'response-editor.js', 'meeting-deletion.js', 'dialog.js', 'saved-schedules.js', 'result-export.js', 'navigation.js', 'favicon.svg'].map(name => ['/' + name, { body: readFileSync(new URL('../public/' + name, import.meta.url), 'utf8'), type: types[name.split('.').pop()] }]));
 assets['/xlsx-writer.js'] = { body: await exportWriterSource(), type: types.js };
 export async function handleNative(request, DB, address) {
   if (new URL(request.url).pathname.startsWith('/api/auth/')) return handleAuth(request, DB, address);

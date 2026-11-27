@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { participantColumns, participantTableMarkup } from '../public/participant-table.js';
+import { participantColumns, buildOverviewModel, overviewCell, overviewTooltipMarkup } from '../public/availability-overview.js';
 import { timeAxisMarkup } from '../public/schedule-grid.js';
 
 test('Individual columns keep duplicate names separate and preserve empty responses', () => {
@@ -12,17 +12,18 @@ test('Individual columns keep duplicate names separate and preserve empty respon
 test('The chosen person sees all dates at once, with escaped names and correct midnight boundaries', () => {
   const meeting = { start_date: '2026-11-23', end_date: '2026-11-25', start_hour: 23, end_hour: 24 };
   const people = [{ name: '<img src=x onerror=alert(1)>', slots: ['2026-11-23|1380', '2026-11-24|1410'] }, { name: '불참', slots: [] }];
-  const html = participantTableMarkup(meeting, participantColumns(people)[0]);
+  const model = buildOverviewModel(meeting, people);
+  const cells = model.slots.map(slot => overviewCell(model, slot, model.people[0].key));
+  assert.equal(model.dates.length, 3);
+  assert.equal(cells.filter(cell => cell.text === '✓').length, 2);
+  assert.equal(cells.filter(cell => cell.text === '—').length, 4);
+  assert.equal(model.slots.map(slot => overviewCell(model, slot, model.people[1].key)).filter(cell => cell.count > 0).length, 0);
+  const html = overviewTooltipMarkup(model, '2026-11-24|1410');
   assert.doesNotMatch(html, /<img/); assert.match(html, /&lt;img/);
   assert.match(html, /23:30 ~ 24:00/);
-  assert.equal((html.match(/class="person-available"/g) || []).length, 2);
-  assert.equal((html.match(/scope="col"/g) || []).length, 4);
-  assert.doesNotMatch(html, /불참/);
-  assert.doesNotMatch(html, /<tfoot|전체 기간 가능한|한국 표준|UTC\+9|\d+(?:\.\d+)?시간/);
-  assert.match(html, /scope="col"/); assert.match(html, /scope="row"/);
-  const empty = participantTableMarkup(meeting, participantColumns(people)[1]);
-  assert.equal((empty.match(/class="person-available"/g) || []).length, 0);
-  assert.equal((empty.match(/class="person-unselected"/g) || []).length, 6);
+  assert.match(html, /가능한 사람 \(1명\)/);
+  assert.match(html, /선택하지 않은 사람 \(1명\)/);
+  assert.match(html, /불참/);
 });
 test('Participant selector keys keep duplicate names separate and do not depend on other names', () => {
   const people = [{ name: '민준', slots: [] }, { name: '민준', slots: [] }, { name: '민준 (1)', slots: [] }];

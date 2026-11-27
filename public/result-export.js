@@ -1,9 +1,8 @@
-import { buildOverviewModel, matchesOverviewFilter } from './availability-overview.js';
+import { buildOverviewModel, overviewCell, overviewFilterLabel } from './availability-overview.js';
 
 const palette = ['#f2f5f1', '#e7f1df', '#cde3ba', '#a3cb8d', '#6f9e60', '#325f3f'];
 const time = minute => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 const day = date => new Date(date + 'T00:00:00Z');
-const filterName = filter => filter === 'best' ? '가장 많이 가능' : '전체 현황';
 const color = (count, total) => palette[count && total ? Math.min(5, Math.ceil(count / total * 5)) : 0];
 const filename = title => (title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 80) || 'When2Meet') + '_결과';
 
@@ -18,13 +17,13 @@ export function buildWorkbookSheets(data, filter = 'all') {
   const merged = (value, extra = {}) => [cell(value, { columnSpan: count, ...extra }), ...Array(count - 1).fill(null)];
   const overview = [
     merged(data.meeting.title, { fontSize: 18, fontWeight: 'bold', wrap: true, height: Math.max(36, Math.ceil([...data.meeting.title].length * 18 / (count * 100)) * 24 + 8) }),
-    merged(`${filterName(filter)} / 응답 ${model.total}명 / 숫자는 가능한 인원이에요.`, { height: 26 }),
+    merged(`${overviewFilterLabel(model, filter)} / 응답 ${model.total}명 / ${model.people.some(person => person.key === filter) ? '1은 가능, 0은 선택하지 않은 시간이에요.' : '숫자는 가능한 인원이에요.'}`, { height: 26 }),
     [heading('시간'), ...model.dates.map(date => heading(day(date)))],
     ...model.minutes.map(minute => [
       cell(`${time(minute)} ~ ${time(minute + 30)}`, { align: 'center' }),
       ...model.dates.map(date => {
-        const amount = model.counts[date + '|' + minute], match = matchesOverviewFilter(amount, model, filter);
-        return cell(amount, { type: Number, format: '0', align: 'center', backgroundColor: match ? color(amount, model.total) : '#f2f5f1', textColor: match && amount && Math.ceil(amount / model.total * 5) === 5 ? '#ffffff' : match ? '#20312b' : '#899389', borderColor: '#dce2dc', borderStyle: 'thin' });
+        const { count: amount, total, match } = overviewCell(model, date + '|' + minute, filter);
+        return cell(amount, { type: Number, format: '0', align: 'center', backgroundColor: match ? color(amount, total) : '#f2f5f1', textColor: match && amount && Math.ceil(amount / total * 5) === 5 ? '#ffffff' : match ? '#20312b' : '#899389', borderColor: '#dce2dc', borderStyle: 'thin' });
       }),
     ]),
   ];
@@ -57,7 +56,7 @@ export async function resultImageBlob(data, filter = 'all') {
   ctx.font = '700 22px system-ui, sans-serif';
   while (ctx.measureText(title).width > width - 48) title = [...title].slice(0, -2).join('') + '…';
   text(title, 24, 30, 22, 700);
-  text(`${filterName(filter)} · 응답 ${model.total}명`, 24, 64, 14);
+  text(`${overviewFilterLabel(model, filter)} · 응답 ${model.total}명`, 24, 64, 14);
   text('When2Meet', width - 24, 92, 12, 700, '#325f3f', 'right');
   const x0 = axis + 16;
   for (let index = 0; index < model.dates.length; index++) {
@@ -69,12 +68,12 @@ export async function resultImageBlob(data, filter = 'all') {
     text(time(minute), x0 - 12, y, 12, 400, '#566459', 'right'); text(time(minute), width - axis, y, 12, 400, '#566459');
   }
   for (let y = 0; y < model.minutes.length; y++) for (let x = 0; x < model.dates.length; x++) {
-    const amount = model.counts[model.dates[x] + '|' + model.minutes[y]], match = matchesOverviewFilter(amount, model, filter), left = x0 + x * column, upper = top + y * row;
-    ctx.fillStyle = match ? color(amount, model.total) : '#f2f5f1'; ctx.fillRect(left, upper, column, row);
+    const { count: amount, total, match, text: label } = overviewCell(model, model.dates[x] + '|' + model.minutes[y], filter), left = x0 + x * column, upper = top + y * row;
+    ctx.fillStyle = match ? color(amount, total) : '#f2f5f1'; ctx.fillRect(left, upper, column, row);
     ctx.strokeStyle = '#d5dfd3'; ctx.lineWidth = 0.5; ctx.strokeRect(left, upper, column, row);
-    text(match && model.total ? `${amount}/${model.total}` : '—', left + column / 2, upper + row / 2, 13, 500, match && amount && Math.ceil(amount / model.total * 5) === 5 ? '#ffffff' : '#20312b', 'center');
+    text(label, left + column / 2, upper + row / 2, 13, 500, match && amount && Math.ceil(amount / total * 5) === 5 ? '#ffffff' : '#20312b', 'center');
   }
-  text(model.total ? '각 칸은 가능 인원 / 응답 인원이에요.' : '아직 저장된 응답이 없어요.', 24, height - 20, 12, 400, '#566459');
+  text(model.people.some(person => person.key === filter) ? '✓는 가능, —는 선택하지 않은 시간이에요.' : model.total ? '각 칸은 가능 인원 / 응답 인원이에요.' : '아직 저장된 응답이 없어요.', 24, height - 20, 12, 400, '#566459');
   return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('이미지를 만들지 못했어요.')), 'image/png'));
 }
 

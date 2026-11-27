@@ -10,7 +10,7 @@ const serviceOrigin = process.env.PUBLIC_SERVICE_ORIGIN || '';
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY || '';
 const supabaseEnabled = Boolean(supabaseUrl && supabaseKey);
-const moduleAssets = ['tokens.css', 'demo.js', 'pages-auth.js', 'auth-ui.js', 'navigation.js', 'app.js', 'backend.js', 'everytime-import.js', 'fixed-grid.js', 'schedule-grid.js', 'participant-table.js', 'availability-overview.js', 'response-editor.js', 'meeting-deletion.js', 'dialog.js', 'saved-schedules.js', 'result-export.js', 'favicon.svg'];
+const moduleAssets = ['tokens.css', 'demo.js', 'pages-auth.js', 'auth-ui.js', 'navigation.js', 'app.js', 'backend.js', 'everytime-import.js', 'fixed-grid.js', 'schedule-grid.js', 'availability-overview.js', 'response-editor.js', 'meeting-deletion.js', 'dialog.js', 'saved-schedules.js', 'result-export.js', 'favicon.svg'];
 const sourceAssets = await Promise.all(['index.html', 'styles.css', ...moduleAssets].map(name => readFile(new URL('public/' + name, root))));
 const writerSource = await exportWriterSource();
 const hash = createHash('sha256').update(writerSource);

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = new URL('../', import.meta.url);
 const types = { html: 'text/html; charset=utf-8', css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', svg: 'image/svg+xml' };
 const assets = {};
-for (const name of ['index.html', 'styles.css', 'tokens.css', 'app.js', 'demo.js', 'auth-ui.js', 'backend.js', 'everytime-import.js', 'fixed-grid.js', 'schedule-grid.js', 'participant-table.js', 'availability-overview.js', 'response-editor.js', 'meeting-deletion.js', 'dialog.js', 'saved-schedules.js', 'result-export.js', 'navigation.js', 'favicon.svg']) assets['/' + name] = { body: await readFile(new URL('public/' + name, root), 'utf8'), type: types[name.split('.').pop()] };
+for (const name of ['index.html', 'styles.css', 'tokens.css', 'app.js', 'demo.js', 'auth-ui.js', 'backend.js', 'everytime-import.js', 'fixed-grid.js', 'schedule-grid.js', 'availability-overview.js', 'response-editor.js', 'meeting-deletion.js', 'dialog.js', 'saved-schedules.js', 'result-export.js', 'navigation.js', 'favicon.svg']) assets['/' + name] = { body: await readFile(new URL('public/' + name, root), 'utf8'), type: types[name.split('.').pop()] };
 assets['/xlsx-writer.js'] = { body: await exportWriterSource(), type: types.js };
 let worker = await readFile(new URL('worker/index.js', root), 'utf8');
 worker = worker.replace("import { meetingSlots, effectiveSlots, summarize } from './scheduling.js';", await readFile(new URL('worker/scheduling.js', root), 'utf8'));
