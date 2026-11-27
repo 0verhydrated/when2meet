@@ -70,6 +70,30 @@ export async function handle(request, env, assets = STATIC_ASSETS) {
       check(saved, '다른 창에서 일정이 변경됐어요. 새로고침 후 다시 저장해 주세요.', 409);
       return json({ fixed: items, fixed_version: saved.fixed_version });
     }
+    if (url.pathname === '/api/saved-schedules' && request.method === 'GET') {
+      const rows = await env.DB.prepare('SELECT id, name, start_date, end_date, start_hour, end_hour, slots_json, created_at FROM saved_schedules WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC, rowid DESC').bind(identity).all();
+      return json({ schedules: rows.results.map(({ slots_json, ...item }) => ({ ...item, slots: JSON.parse(slots_json) })) });
+    }
+    if (url.pathname === '/api/saved-schedules' && request.method === 'POST') {
+      const value = await body(request);
+      check(text(value.name, 60), '저장할 일정 이름을 60자 이내로 입력해 주세요.');
+      check(typeof value.meeting_id === 'string' && /^[a-f0-9]{32}$/.test(value.meeting_id), '약속을 확인해 주세요.');
+      const original = await env.DB.prepare('SELECT start_date, end_date, start_hour, end_hour FROM meetings WHERE id = ? AND deleted_at IS NULL').bind(value.meeting_id).first();
+      check(original, '약속 링크를 찾을 수 없어요.', 404);
+      const allowed = new Set(meetingSlots(original));
+      check(Array.isArray(value.slots) && value.slots.length <= allowed.size && value.slots.every(slot => typeof slot === 'string' && allowed.has(slot)), '저장할 시간이 약속 범위를 벗어났어요.');
+      const slots = effectiveSlots([...new Set(value.slots)], JSON.parse(user.fixed_json));
+      const id = crypto.randomUUID().replaceAll('-', '');
+      const saved = await env.DB.prepare('INSERT INTO saved_schedules (id, user_id, name, start_date, end_date, start_hour, end_hour, slots_json) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM saved_schedules WHERE user_id = ? AND deleted_at IS NULL) < 30 RETURNING id').bind(id, identity, value.name.trim(), original.start_date, original.end_date, original.start_hour, original.end_hour, JSON.stringify(slots), identity).first();
+      check(saved, '일정은 최대 30개까지 저장할 수 있어요. 사용하지 않는 일정을 지워 주세요.', 409);
+      return json({ id }, 201);
+    }
+    const savedRoute = /^\/api\/saved-schedules\/([a-f0-9]{32})$/.exec(url.pathname);
+    if (savedRoute && request.method === 'DELETE') {
+      const removed = await env.DB.prepare('UPDATE saved_schedules SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? AND deleted_at IS NULL RETURNING id').bind(savedRoute[1], identity).first();
+      check(removed, '저장한 일정을 찾을 수 없어요.', 404);
+      return json({ deleted: true });
+    }
     if (url.pathname === '/api/meetings' && request.method === 'GET') {
       const rows = await env.DB.prepare('SELECT m.id, m.owner_id, m.title, m.start_date, m.end_date, m.start_hour, m.end_hour, m.created_at, m.owner_id = ? AS can_delete, m.delete_password_hash IS NOT NULL AS has_delete_password, (SELECT COUNT(*) FROM responses r WHERE r.meeting_id = m.id) AS response_count FROM meetings m WHERE m.deleted_at IS NULL AND (m.owner_id = ? OR EXISTS (SELECT 1 FROM responses r WHERE r.meeting_id = m.id AND r.user_id = ?)) ORDER BY m.created_at DESC, m.rowid DESC LIMIT 100').bind(identity, identity, identity).all();
       return json({ meetings: rows.results });

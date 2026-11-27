@@ -14,6 +14,7 @@ test('Supabase RPC preserves ownership, private fixed schedules, aggregate resul
       create or replace function extensions.gen_salt(text,integer) returns text language sql as $$ select gen_random_uuid()::text $$;
       create or replace function extensions.crypt(text,text) returns text language sql as $$ select split_part($2,'$',1) || '$' || md5($1 || split_part($2,'$',1)) $$;`);
     await db.exec(deletionMigration);
+    await db.exec(await readFile(new URL('../supabase/migrations/202611280001_saved_schedules.sql', import.meta.url), 'utf8'));
   };
   try {
     await db.exec("create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key, raw_user_meta_data jsonb); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$; grant usage on schema auth to authenticated, anon; grant execute on function auth.uid() to authenticated, anon;");
@@ -68,6 +69,14 @@ test('Supabase RPC preserves ownership, private fixed schedules, aggregate resul
     await assert.rejects(db.query('select * from public.meeting_deletion_secrets'), /permission denied/);
     await assert.rejects(db.query("select public.when2meet_api_base('/meetings','GET','{}')"), /permission denied/);
     await asUser(alice);
+    await assert.rejects(db.query('select * from public.saved_schedules'), /permission denied/);
+    const savedSchedule = await api('/saved-schedules', 'POST', { meeting_id: created.id, name: '저장한 일정', slots: [slots[0], slots[2]] });
+    assert.deepEqual((await api('/saved-schedules')).schedules[0].slots, [slots[2]]);
+    await assert.rejects(api('/saved-schedules', 'POST', { meeting_id: created.id, name: '범위 밖', slots: ['1999-01-01|540'] }), /약속 범위/);
+    await asUser(bob);
+    assert.deepEqual((await api('/saved-schedules')).schedules, []);
+    await assert.rejects(api('/saved-schedules/' + savedSchedule.id, 'DELETE'), /저장한 일정/);
+    await asUser(alice);
     for (let i=0; i<5; i++) assert.match((await api(path, 'DELETE', { password: 'wrong-password' })).error, /비밀번호를 확인/);
     assert.match((await api(path, 'DELETE', { password: 'delete-password-2026' })).error, /15분/);
     await db.exec('reset role'); await db.query("update public.meeting_deletion_secrets set reset_at=now()-interval '1 second' where meeting_id=$1", [created.id]); await asUser(alice);
@@ -76,6 +85,9 @@ test('Supabase RPC preserves ownership, private fixed schedules, aggregate resul
     await assert.rejects(api(path), /약속 링크/);
     await assert.rejects(api(path + '/response', 'PUT', { slots: [], version: 1 }), /약속 링크/);
     assert.deepEqual((await api('/meetings')).meetings, []);
+    assert.equal((await api('/saved-schedules')).schedules.length, 1);
+    await api('/saved-schedules/' + savedSchedule.id, 'DELETE');
+    assert.deepEqual((await api('/saved-schedules')).schedules, []);
     await asUser(bob); assert.deepEqual((await api('/meetings')).meetings, []);
     await db.exec('reset role');
     const legacyId = 'b'.repeat(32);

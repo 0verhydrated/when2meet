@@ -13,7 +13,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",
     "bcryptjs": "^3.0.3",
-    "fast-xml-parser": "^5.12.1"
+    "fast-xml-parser": "^5.12.1",
+    "write-excel-file": "^4.1.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.17",

@@ -1,12 +1,8 @@
+import { createDialog } from './dialog.js';
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
 export function openMeetingDeletion(meeting, api, onDeleted) {
-  const opener = document.activeElement;
-  const dialog = document.createElement('dialog');
-  dialog.className = 'deletion-dialog';
-  dialog.setAttribute('aria-labelledby', 'deletion-heading');
-  dialog.setAttribute('aria-describedby', 'deletion-description');
-  dialog.innerHTML = `<form><h2 id="deletion-heading"></h2><p class="helper">${escape(meeting.title)}</p><p id="deletion-description"></p><div class="field"><label for="deletion-password">삭제 비밀번호</label><input id="deletion-password" name="password" type="password" required minlength="8" maxlength="128" autocomplete="off" autofocus></div><p id="deletion-status" class="inline-status error" role="status"></p><div class="form-actions"><button class="quiet-button" type="button" id="cancel-deletion">취소</button><button class="button danger-button" type="submit" id="confirm-deletion"></button></div></form>`;
+  const dialog = createDialog(`<form><h2 id="deletion-heading"></h2><p class="helper">${escape(meeting.title)}</p><p id="deletion-description"></p><div class="field"><label for="deletion-password">삭제 비밀번호</label><input id="deletion-password" name="password" type="password" required minlength="8" maxlength="128" autocomplete="off" autofocus></div><p id="deletion-status" class="inline-status error" role="status"></p><div class="form-actions"><button class="quiet-button" type="button" id="cancel-deletion">취소</button><button class="button danger-button" type="submit" id="confirm-deletion"></button></div></form>`);
   const form = dialog.querySelector('form'), input = form.elements.password, submit = form.querySelector('[type=submit]'), cancel = form.querySelector('#cancel-deletion'), message = form.querySelector('#deletion-status');
   let busy = false;
   const render = () => {
@@ -16,14 +12,6 @@ export function openMeetingDeletion(meeting, api, onDeleted) {
   };
   cancel.onclick = () => dialog.close();
   dialog.oncancel = event => { if (busy) event.preventDefault(); };
-  dialog.onkeydown = event => {
-    if (event.key !== 'Tab') return;
-    const controls = [...dialog.querySelectorAll('input, button')].filter(element => !element.disabled);
-    const first = controls[0], last = controls.at(-1);
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-  };
-  dialog.onclose = () => { input.value = ''; dialog.remove(); if (opener?.isConnected) opener.focus(); };
   form.onsubmit = async event => {
     event.preventDefault(); if (busy) return;
     busy = true; submit.disabled = true; cancel.disabled = true; message.textContent = '';
@@ -39,5 +27,5 @@ export function openMeetingDeletion(meeting, api, onDeleted) {
     } catch (error) { message.textContent = error.message; input.value = ''; input.focus(); }
     finally { busy = false; submit.disabled = false; cancel.disabled = false; }
   };
-  render(); document.body.append(dialog); dialog.showModal();
+  dialog.setAttribute('aria-describedby', 'deletion-description'); render(); dialog.showModal();
 }

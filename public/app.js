@@ -1,4 +1,6 @@
 import './demo.js';
+import { saveScheduleDialog, loadScheduleDialog } from './saved-schedules.js';
+import { exportMeetingResult } from './result-export.js';
 import { openMeetingDeletion } from './meeting-deletion.js';
 import { renderAuth } from './auth-ui.js';
 import { requestApi } from './backend.js';
@@ -31,6 +33,7 @@ let selected = new Set();
 let responseEditor;
 let loadingResponse = false;
 let resultsRequest = 0;
+let exportingResult = false;
 if (isApp) { document.querySelector('#home-view').hidden = true; document.querySelector('#app-view').hidden = false; }
 const api = requestApi;
 function renderPage(markup) { appContent.innerHTML = pageMarkup(markup); }
@@ -122,7 +125,7 @@ async function renderMeeting() {
   const meeting = savedMeeting.meeting;
   selected = new Set((savedMeeting.mine?.slots || []).filter(slot => !blockedBy(slot)));
   const shareUrl = new URL(pageUrl('/m/' + meetingId), location.origin).href;
-  renderPage( '<a class="back-link" href="/app">내 약속으로 돌아가기</a>' + appTop(meeting.title, `${dateLabel(meeting.start_date)} ~ ${dateLabel(meeting.end_date)}`) + `<div class="share-panel"><div class="share-controls"><span class="share-label">공유 링크</span>${savedMeeting.can_delete ? '<button class="quiet-button delete-meeting" id="delete-meeting" type="button">약속 삭제</button>' : ''}<button class="copy-link-button" id="copy-link" type="button" aria-label="공유 링크 복사" title="공유 링크 복사"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></button></div><label class="sr-only" for="share-link">참여 링크</label><input id="share-link" class="share-url" readonly hidden value="${escape(shareUrl)}"><p class="helper" id="copy-status" role="status" hidden></p></div><div class="vote-layout"><section aria-labelledby="vote-heading"><div class="vote-toolbar"><h2 id="vote-heading">가능한 시간을 선택해 주세요</h2><button class="quiet-button" type="button" id="select-all">고정 일정 제외 모두 선택</button><button class="quiet-button" type="button" id="clear-all">선택 해제</button></div><div class="paint-options"><button class="button secondary" id="paint-toggle" type="button" aria-pressed="false">드래그로 칠하기</button></div><div class="schedule-scroll" tabindex="0" role="region" aria-label="시간표 스크롤"><div class="schedule-grid" id="schedule-grid"></div></div><div class="response-actions"><button class="quiet-button" id="undo-response" type="button" aria-keyshortcuts="Control+Z Meta+Z" disabled>되돌리기</button><button class="quiet-button" id="retry-response" type="button" hidden>다시 저장</button><button class="quiet-button" id="reload-response" type="button" hidden>저장된 응답 불러오기</button></div><p id="form-status" class="inline-status" role="status"></p></section><aside class="results-panel" id="results" aria-labelledby="overview-heading"></aside></div><section id="participant-availability" aria-labelledby="participant-heading"></section>`);
+  renderPage( '<a class="back-link" href="/app">내 약속으로 돌아가기</a>' + appTop(meeting.title, `${dateLabel(meeting.start_date)} ~ ${dateLabel(meeting.end_date)}`) + `<div class="share-panel"><div class="share-controls"><span class="share-label">공유 링크</span>${savedMeeting.can_delete ? '<button class="quiet-button delete-meeting" id="delete-meeting" type="button">약속 삭제</button>' : ''}<button class="copy-link-button" id="copy-link" type="button" aria-label="공유 링크 복사" title="공유 링크 복사"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></button></div><label class="sr-only" for="share-link">참여 링크</label><input id="share-link" class="share-url" readonly hidden value="${escape(shareUrl)}"><p class="helper" id="copy-status" role="status" hidden></p></div><div class="vote-layout"><section aria-labelledby="vote-heading"><div class="vote-toolbar"><h2 id="vote-heading">가능한 시간을 선택해 주세요</h2><button class="quiet-button" type="button" id="select-all">고정 일정 제외 모두 선택</button><button class="quiet-button" type="button" id="clear-all">선택 해제</button></div><div class="paint-options"><button class="button secondary" id="paint-toggle" type="button" aria-pressed="false">드래그로 칠하기</button></div><div class="schedule-scroll" tabindex="0" role="region" aria-label="시간표 스크롤"><div class="schedule-grid" id="schedule-grid"></div></div><div class="response-actions"><button class="quiet-button" type="button" id="save-schedule">일정 저장</button><button class="quiet-button" type="button" id="load-schedule">불러오기</button><button class="quiet-button" id="undo-response" type="button" aria-keyshortcuts="Control+Z Meta+Z" disabled>되돌리기</button><button class="quiet-button" id="retry-response" type="button" hidden>다시 저장</button><button class="quiet-button" id="reload-response" type="button" hidden>저장된 응답 불러오기</button></div><p id="library-status" class="inline-status" role="status" hidden></p><p id="form-status" class="inline-status" role="status"></p></section><aside class="results-panel" id="results" aria-labelledby="overview-heading"></aside></div><section id="participant-availability" aria-labelledby="participant-heading"></section>`);
   const deletionTarget = { ...meeting, has_delete_password: savedMeeting.has_delete_password };
   const deleteButton = document.querySelector('#delete-meeting');
   if (deleteButton) deleteButton.onclick = () => openMeetingDeletion(deletionTarget, async (path, options) => {
@@ -135,6 +138,17 @@ async function renderMeeting() {
   };
   document.querySelector('#select-all').onclick = () => { if (loadingResponse) return; selected = new Set(meetingSlots(meeting).filter(slot => !blockedBy(slot))); changed(); drawGrid(); };
   document.querySelector('#clear-all').onclick = () => { if (loadingResponse) return; selected.clear(); changed(); drawGrid(); };
+  const libraryStatus = message => { const node = document.querySelector('#library-status'); node.hidden = false; node.textContent = message; };
+  document.querySelector('#save-schedule').onclick = () => {
+    if (loadingResponse) return; schedulePainter?.finish(false);
+    saveScheduleDialog(meeting, responseEditor.state.slots, api, () => libraryStatus('일정을 저장했어요.'));
+  };
+  document.querySelector('#load-schedule').onclick = () => {
+    if (loadingResponse) return; schedulePainter?.finish(false);
+    loadScheduleDialog(meeting, () => responseEditor.state.slots, blockedBy, api, slots => {
+      responseEditor.change(slots); drawGrid(); libraryStatus('저장한 일정을 불러왔어요.');
+    });
+  };
   document.querySelector('#undo-response').onclick = undoResponse;
   document.querySelector('#retry-response').onclick = () => { void responseEditor.retry(); };
   document.querySelector('#reload-response').onclick = reloadResponse;
@@ -200,17 +214,36 @@ function refreshDateButtons() {
     button.disabled = loadingResponse || !allowed.length;
   }
 }
-function lockSelection() { document.querySelectorAll('#schedule-grid [data-slot], [data-select-date], #paint-toggle, #select-all, #clear-all, #refresh-results').forEach(button => { button.disabled = loadingResponse; }); refreshDateButtons(); }
+function lockSelection() { document.querySelectorAll('#schedule-grid [data-slot], [data-select-date], #paint-toggle, #select-all, #clear-all, #save-schedule, #load-schedule, #refresh-results').forEach(button => { button.disabled = loadingResponse; }); refreshDateButtons(); }
 function drawResults() {
   const active = document.activeElement;
   const restoreFocus = active?.closest('#results, #participant-availability') ? active.id ? '#' + active.id : active.dataset.filter ? '[data-filter="' + active.dataset.filter + '"]' : active.dataset.slot ? '#overview-grid [data-slot="' + active.dataset.slot + '"]' : null : null;
   const data = savedMeeting;
-  document.querySelector('#results').innerHTML = `<section id="availability-overview" aria-labelledby="overview-heading"></section><div class="participants"><h3>참여한 사람</h3><p>${data.participants.length ? data.participants.map(person => escape(person.name)).join(', ') : '아직 참여한 사람이 없어요.'}</p><button class="quiet-button" id="refresh-results" type="button">결과 새로고침</button><p class="helper" id="results-status" role="status"></p></div>`;
+  document.querySelector('#results').innerHTML = `<section id="availability-overview" aria-labelledby="overview-heading"></section><p id="export-status" class="inline-status" role="status" hidden></p><div class="participants"><h3>참여한 사람</h3><p>${data.participants.length ? data.participants.map(person => escape(person.name)).join(', ') : '아직 참여한 사람이 없어요.'}</p><button class="quiet-button" id="refresh-results" type="button">결과 새로고침</button><p class="helper" id="results-status" role="status"></p></div>`;
   document.querySelector('#refresh-results').onclick = async event => { const button = event.currentTarget; button.disabled = true; try { await refreshMeetingResults(); } catch (error) { status(error.message, true, '#results-status'); button.disabled = false; } };
   mountAvailabilityOverview(document.querySelector('#availability-overview'), data, overviewState);
+  for (const button of document.querySelectorAll('[data-export-result]')) {
+    button.disabled = exportingResult;
+    button.onclick = () => { void exportResult(button.dataset.exportResult); };
+  }
   mountParticipantTable(document.querySelector('#participant-availability'), data);
   if (restoreFocus) document.querySelector(restoreFocus)?.focus({ preventScroll: true });
   lockSelection();
+}
+async function exportResult(format) {
+  if (exportingResult) return;
+  exportingResult = true;
+  const filter = overviewState.filter;
+  document.querySelectorAll('[data-export-result]').forEach(button => { button.disabled = true; });
+  const feedback = (message, error = false) => { const node = document.querySelector('#export-status'); if (node) { node.hidden = false; node.textContent = message; node.classList.toggle('error', error); } };
+  feedback('파일을 만들고 있어요…');
+  try {
+    schedulePainter?.finish(false); await responseEditor.flush();
+    if (responseEditor.state.dirty) throw new Error('먼저 응답의 저장 상태를 확인한 뒤 다시 내려받아 주세요.');
+    const data = await api('/meetings/' + meetingId);
+    await exportMeetingResult(data, filter, format); feedback('파일을 내려받았어요.');
+  } catch (error) { feedback(error.message, true); }
+  finally { exportingResult = false; document.querySelectorAll('[data-export-result]').forEach(button => { button.disabled = false; }); }
 }
 function renderResponseState(state) {
   dirty = state.dirty;

@@ -1,3 +1,4 @@
+import { exportWriterSource } from './export-writer.mjs';
 import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
@@ -9,9 +10,10 @@ const serviceOrigin = process.env.PUBLIC_SERVICE_ORIGIN || '';
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY || '';
 const supabaseEnabled = Boolean(supabaseUrl && supabaseKey);
-const moduleAssets = ['tokens.css', 'demo.js', 'pages-auth.js', 'auth-ui.js', 'navigation.js', 'app.js', 'backend.js', 'everytime-import.js', 'fixed-grid.js', 'schedule-grid.js', 'participant-table.js', 'availability-overview.js', 'response-editor.js', 'meeting-deletion.js', 'favicon.svg'];
+const moduleAssets = ['tokens.css', 'demo.js', 'pages-auth.js', 'auth-ui.js', 'navigation.js', 'app.js', 'backend.js', 'everytime-import.js', 'fixed-grid.js', 'schedule-grid.js', 'participant-table.js', 'availability-overview.js', 'response-editor.js', 'meeting-deletion.js', 'dialog.js', 'saved-schedules.js', 'result-export.js', 'favicon.svg'];
 const sourceAssets = await Promise.all(['index.html', 'styles.css', ...moduleAssets].map(name => readFile(new URL('public/' + name, root))));
-const hash = createHash('sha256');
+const writerSource = await exportWriterSource();
+const hash = createHash('sha256').update(writerSource);
 for (const source of sourceAssets) hash.update(source);
 const revision = hash.update(supabaseUrl).update(supabaseKey).update(serviceOrigin).digest('hex').slice(0, 12);
 if (Boolean(supabaseUrl) !== Boolean(supabaseKey)) throw new Error('Set both SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY');
@@ -41,6 +43,7 @@ html = html.replace(/((?:href|src)="\.\/[^"?]+\.(?:js|css))"/g, `$1?v=${revision
 await writeFile(new URL('index.html', output), html);
 const css = (await readFile(new URL('public/styles.css', root), 'utf8')).replaceAll('url("/tokens.css")', `url("./tokens.css?v=${revision}")`);
 await writeFile(new URL('styles.css', output), css);
+await writeFile(new URL('xlsx-writer.js', output), writerSource);
 for (const name of moduleAssets) {
   if (!name.endsWith('.js')) { await copyFile(new URL('public/' + name, root), new URL(name, output)); continue; }
   const source = await readFile(new URL('public/' + name, root), 'utf8');
